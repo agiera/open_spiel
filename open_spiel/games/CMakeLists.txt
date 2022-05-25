@@ -90,6 +90,8 @@ set(GAME_SOURCES
   hearts.h
   hex.cc
   hex.h
+  hive.cc
+  hive.h
   kriegspiel.cc
   kriegspiel.h
   kuhn_poker.cc
@@ -449,6 +451,10 @@ add_test(hearts_test hearts_test)
 add_executable(hex_test hex_test.cc ${OPEN_SPIEL_OBJECTS}
                $<TARGET_OBJECTS:tests>)
 add_test(hex_test hex_test)
+
+add_executable(hive_test hive_test.cc ${OPEN_SPIEL_OBJECTS}
+               $<TARGET_OBJECTS:tests>)
+add_test(hive_test hive_test)
 
 add_executable(kriegspiel_test kriegspiel_test.cc ${OPEN_SPIEL_OBJECTS}
         $<TARGET_OBJECTS:tests>)

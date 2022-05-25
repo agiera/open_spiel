@@ -60,6 +60,7 @@ EXPECTED_GAMES = frozenset([
     "goofspiel",
     "havannah",
     "hex",
+    "hive",
     "hearts",
     "kriegspiel",
     "kuhn_poker",
