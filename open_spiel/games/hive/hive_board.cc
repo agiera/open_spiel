@@ -25,8 +25,6 @@
 namespace open_spiel {
 namespace hive {
 
-static inline Hexagon kEmptyHexagon = Hexagon(0, 0, 0);
-
 absl::optional<BugType> BugTypeFromChar(char c) {
   return BugType::kBee;
 }
@@ -59,6 +57,18 @@ const std::array<Offset, 6> oddColumnNeighbors = {
   Offset{0, -1, 0}, {1, -1, 0}, {0, 1, 0}, {1, 0, 0}, {-1, 0, 0}, {-1, -1, 0},
 };
 
+std::array<Offset, 6> neighbours(Offset o) {
+  auto f = [o](Offset p) -> Offset { return p + o; };
+  std::array<Offset, 6> neighbours;
+  if (o.x % 2 == 0) {
+    neighbours = evenColumnNeighbors;
+  } else {
+    neighbours = oddColumnNeighbors;
+  }
+  std::transform(neighbours.begin(), neighbours.end(), neighbours.begin(), f);
+  return neighbours;
+}
+
 std::ostream& operator<<(std::ostream& os, Bug b) {
   return os << BugToString(b);
 }
@@ -75,34 +85,32 @@ Hexagon::Hexagon() {
   loc.x = 0;
   loc.y = 0;
   loc.z = 0;
-  bug = absl::nullopt;
   visited = false;
-  neighbours.fill(NULL);
-}
-
-Hexagon::Hexagon(int8_t x, int8_t y, int8_t z) {
-  loc.x = x;
-  loc.y = y;
-  loc.z = z;
-  bug = absl::nullopt;
-  visited = false;
+  above = NULL;
+  below = NULL;
   neighbours.fill(NULL);
 }
 
 BugCollection::BugCollection(Color c) {
-  color_ = c;
   bug_counts_ = bug_counts;
+  for (int8_t i=0; i < kNumBugTypes; i++) {
+    for (int8_t j=0; j < bug_counts[i]; j++) {
+      hexagons_[bug_series[i] + j].bug.color = c;
+      hexagons_[bug_series[i] + j].bug.type = (BugType) i;
+    }
+  }
 }
 
 bool BugCollection::HasBug(BugType t) const {
   return !bug_counts_[t] == 0;
 }
 
-Bug BugCollection::UseBug(BugType t) {
+Hexagon* BugCollection::UseBug(BugType t) {
   if (HasBug(t)) {
     bug_counts_[t]--;
-    return Bug{color_, t};
+    return &hexagons_[bug_series[t] + bug_counts_[t]];
   }
+  return NULL;
 }
 
 HiveBoard::HiveBoard(int board_size) :
@@ -115,7 +123,7 @@ HiveBoard::HiveBoard(int board_size) :
 
 void HiveBoard::Clear() {  
   for (Hexagon* h : hexagons_) {
-    bug_collections_[h->bug.value().color].ReturnBug(*h);
+    bug_collections_[h->bug.color].ReturnBug(h);
   }
 
   hexagons_.clear();
@@ -130,13 +138,15 @@ int HiveBoard::OffsetToIndex(Offset o) const {
   return o.x + kBoardSize*o.y + kBoardSize*kBoardSize*o.z;
 }
 
-absl::optional<Color> HiveBoard::HexagonOwner(Hexagon& h) const {
-  if (h.bug == absl::nullopt) { return absl::nullopt; }
+absl::optional<Color> HiveBoard::OffsetOwner(Offset o) const {
+  Hexagon* h = GetHexagon(o);
+  if (h == NULL) { return absl::nullopt; }
   absl::optional<Color> c = absl::nullopt;
-  for (Hexagon* n : h.neighbours) {
-    if (n->bug.has_value()) {
-      c = n->bug.value().color;
-      if (c.value() != n->bug.value().color) {
+  for (Offset p : neighbours(o)) {
+    Hexagon* n = GetHexagon(p);
+    if (n != NULL) {
+      c = n->bug.color;
+      if (c.value() != n->bug.color) {
         return absl::nullopt;
       }
     }
@@ -144,40 +154,39 @@ absl::optional<Color> HiveBoard::HexagonOwner(Hexagon& h) const {
   return c;
 }
 
-void HiveBoard::CacheHexagonOwner(Hexagon& h) {
-  absl::optional<Color> c = HexagonOwner(h);
+void HiveBoard::CacheOffsetOwner(Offset o) {
+  absl::optional<Color> c = OffsetOwner(o);
   if (c.has_value()) {
-    available_[c.value()].push_back(h.boardIndex);
+    available_[c.value()].insert(OffsetToIndex(o));
   } else {
-    // TODO: available_.remove(h.boardIndex);
+    available_[kBlack].erase(OffsetToIndex(o));
+    available_[kWhite].erase(OffsetToIndex(o));
   }
 }
 
-Bug HiveBoard::TakeBug(Hexagon& h) {
-  if (!h.bug.has_value()) { return; }
-  Bug b = h.bug.value();
-  CacheHexagonOwner(h);
-  for (Hexagon* n : h.neighbours) {
-    CacheHexagonOwner(*n);
+Hexagon* HiveBoard::TakeHexagon(Offset o) {
+  Hexagon* h = GetHexagon(o);
+  if (h == NULL) { return; }
+  CacheOffsetOwner(o);
+  for (Offset p : neighbours(o)) {
+    CacheOffsetOwner(p);
   }
-  return b;
+  return h;
 }
 
 void HiveBoard::PlayMove(HiveMove &m) {
   if (m.pass) return;
-  Bug b;
+  Hexagon* h;
   if (m.place) {
-    b = bug_collections_[to_play_].UseBug(m.bug);
+    h = bug_collections_[to_play_].UseBug(m.bug);
   } else {
     // TODO: Remove bug from board and set to h
-    Hexagon* h = GetHexagon(m.from);
-    b = TakeBug(*h);
+    TakeHexagon(m.from);
   }
   Hexagon* h = GetHexagon(m.to);
-  h->bug = b;
-  CacheHexagonOwner(*h);
-  for (Hexagon* n : h->neighbours) {
-    CacheHexagonOwner(*n);
+  CacheOffsetOwner(m.to);
+  for (Offset p : neighbours(m.to)) {
+    CacheOffsetOwner(p);
   }
 }
 

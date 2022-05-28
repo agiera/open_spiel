@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <ostream>
 #include <vector>
+#include <unordered_set>
 
 #include "open_spiel/spiel_utils.h"
 
@@ -35,7 +36,7 @@ inline constexpr int kBoardSize = 29;
 inline constexpr int kBoardHeight = 7;
 inline constexpr int kNumHexagons = kBoardSize*kBoardSize*kBoardHeight;
 
-const chess_common::ZobristTable<uint64_t, 2*numBugs, kBoardSize, kBoardSize, kBoardHeight> zobristTable(/*seed=*/2346);
+const chess_common::ZobristTable<uint64_t, 2*kNumBugs, kBoardSize, kBoardSize, kBoardHeight> zobristTable(/*seed=*/2346);
 
 // 1 Bee
 // 2 Beetles
@@ -48,8 +49,10 @@ const chess_common::ZobristTable<uint64_t, 2*numBugs, kBoardSize, kBoardSize, kB
 // 14 bugs per side
 inline constexpr int kNumBugTypes = 8;
 inline constexpr int kNumCellStates = 2*kNumBugTypes + 1;
-inline constexpr int numBugs = 14;
+inline constexpr int kNumBugs = 14;
 inline constexpr std::array<int8_t, 8> bug_counts = {1, 2, 3, 3, 2, 1, 1, 1};
+// bug_series[i] is the number of bugs with type < i
+inline constexpr std::array<int8_t, 8> bug_series = {0, 1, 3, 6, 9, 11, 12, 13};
 
 enum Color : int8_t { kBlack = 0, kWhite = 1 };
 
@@ -118,6 +121,7 @@ struct Offset {
     return !operator==(other);
   }
 };
+std::array<Offset, 6> neighbours(Offset o);
 
 // x corresponds to file (column / letter)
 // y corresponds to rank (row / number).
@@ -130,10 +134,9 @@ struct Offset {
 class Hexagon {
  public:
   explicit Hexagon();
-  explicit Hexagon(int8_t x, int8_t y, int8_t z);
 
   Offset loc;
-  absl::optional<Bug> bug;
+  Bug bug;
 
   Hexagon* above;
   Hexagon* below;
@@ -149,27 +152,6 @@ std::ostream &operator<<(std::ostream &os, Bug b);
 std::ostream &operator<<(std::ostream &os, absl::optional<Bug> b);
 
 std::string HiveActionToString(Action action);
-
-// To iterate over 6 neighbouring hexagons, do
-//
-// Hexagon hexagon;
-// for (auto h = Neighbours6(hexagon); h; ++h) {
-//   // Do something on h..
-// }:w
-
-//
-class Neighbours6 {
- public:
-  explicit Neighbours6(const Offset o);
-
-  Neighbours6 &operator++();
-  const Offset operator*() const;
-  explicit operator bool() const;
-
- private:
-  int dir_;
-  const Offset o_;
-};
 
 struct HiveMove {
   bool pass;
@@ -191,13 +173,13 @@ class BugCollection {
  public:
   explicit BugCollection(Color c);
 
-  void ReturnBug(Hexagon& h);
+  void ReturnBug(Hexagon* h);
 
   bool HasBug(BugType t) const;
-  Bug UseBug(BugType t);
+  Hexagon* UseBug(BugType t);
 
  private:
-  Color color_;
+  std::array<Hexagon, kNumBugs> hexagons_;
   std::array<int8_t, 8> bug_counts_;
 };
 
@@ -221,10 +203,10 @@ class HiveBoard {
  private:
   int OffsetToIndex(Offset o) const;
   Hexagon* GetHexagon(Offset o) const;
-  absl::optional<Color> HexagonOwner(Hexagon& h) const;
-  void CacheHexagonOwner(Hexagon& h);
-  Bug TakeBug(Hexagon& h);
-  void PlaceBug(Offset o, Bug h);
+  absl::optional<Color> OffsetOwner(Offset o) const;
+  void CacheOffsetOwner(Offset o);
+  Hexagon* TakeHexagon(Offset o);
+  void PlaceHexagon(Offset o, Hexagon* h);
 
   int8_t board_size_;
   int8_t board_height_;
@@ -234,9 +216,9 @@ class HiveBoard {
   Color to_play_;
   std::array<BugCollection, 2> bug_collections_;
 
-  std::array<std::vector<int>, 2> available_;
+  std::array<std::unordered_set<int>, 2> available_;
   std::vector<Hexagon*> hexagons_;
-  std::array<Hexagon, kBoardSize*kBoardSize*kBoardHeight> board_;
+  std::array<Hexagon*, kBoardSize*kBoardSize*kBoardHeight> board_;
   std::array<bool, kBoardSize*kBoardSize> visited_;
 
   std::vector<HiveMove> legalMoves_;
