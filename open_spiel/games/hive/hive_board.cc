@@ -49,18 +49,29 @@ std::string Bug::ToString() const {
 // A hexagon's ith neighbour is it's (i + 3 mod 5)ths neighbour
 const std::vector<int8_t> neighbour_inverse = {3, 4, 5, 0, 1, 2};
 
+Offset::Offset(int boardIdx) {
+  boardIdx = boardIdx % (kBoardSize*kBoardSize*kBoardHeight);
+  z = boardIdx / (kBoardSize*kBoardSize);
+  boardIdx = boardIdx % (kBoardSize*kBoardSize);
+  y = boardIdx / kBoardSize;
+  x = boardIdx % kBoardSize;
+  index = x + kBoardSize*y + kBoardSize*kBoardSize*z;
+}
+
 const std::array<Offset, 6> evenColumnNeighbors = {
-  Offset{0, -1, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {-1, 1, 0}, {-1, 0, 0},
+  Offset(0, -1, 0), Offset(1, 0, 0), Offset(1, 1, 0),
+  Offset(0, 1, 0), Offset(-1, 1, 0), Offset(-1, 0, 0),
 };
 
 const std::array<Offset, 6> oddColumnNeighbors = {
-  Offset{0, -1, 0}, {1, -1, 0}, {0, 1, 0}, {1, 0, 0}, {-1, 0, 0}, {-1, -1, 0},
+  Offset(0, -1, 0), Offset(1, -1, 0), Offset(0, 1, 0),
+  Offset(1, 0, 0), Offset(-1, 0, 0), Offset(-1, -1, 0),
 };
 
-std::array<Offset, 6> neighbours(Offset o) {
-  auto f = [o](Offset p) -> Offset { return p + o; };
+std::array<Offset, 6> Offset::neighbours() const {
+  auto f = [this](Offset p) -> Offset { return p + *this; };
   std::array<Offset, 6> neighbours;
-  if (o.x % 2 == 0) {
+  if (x % 2 == 0) {
     neighbours = evenColumnNeighbors;
   } else {
     neighbours = oddColumnNeighbors;
@@ -68,6 +79,26 @@ std::array<Offset, 6> neighbours(Offset o) {
   std::transform(neighbours.begin(), neighbours.end(), neighbours.begin(), f);
   return neighbours;
 }
+
+Offset Offset::operator+(const Offset& other) const {
+  return Offset(x + other.x, y + other.y, z + other.z);
+}
+
+bool Offset::operator==(const Offset& other) const {
+  return x == other.x && y == other.y && z == other.z;
+}
+
+bool Offset::operator!=(const Offset& other) const {
+  return !operator==(other);
+}
+
+Offset neighbourOffset(Offset o, int i) {
+  if (o.x % 2 == 0) {
+    return o + evenColumnNeighbors[i];
+  }
+  return o + oddColumnNeighbors[i];
+}
+
 
 std::ostream& operator<<(std::ostream& os, Bug b) {
   return os << BugToString(b);
@@ -85,68 +116,278 @@ Hexagon::Hexagon() {
   loc.x = 0;
   loc.y = 0;
   loc.z = 0;
+  bug = absl::nullopt;
   visited = false;
   above = NULL;
   below = NULL;
   neighbours.fill(NULL);
 }
 
-BugCollection::BugCollection(Color c) {
-  bug_counts_ = bug_counts;
-  for (int8_t i=0; i < kNumBugTypes; i++) {
-    for (int8_t j=0; j < bug_counts[i]; j++) {
-      hexagons_[bug_series[i] + j].bug.color = c;
-      hexagons_[bug_series[i] + j].bug.type = (BugType) i;
+Hexagon* Hexagon::Bottom() const {
+  Hexagon* h = below;
+  while (h->loc.z != 0) {
+    h = h->below;
+  }
+  return h;
+}
+
+Hexagon* Hexagon::Top() const {
+  Hexagon* h = above;
+  while (h->loc.z != kBoardHeight-1) {
+    h = h->above;
+  }
+  return h;
+}
+
+int Hexagon::FindClockwiseMove(int prev_idx) const {
+  int j;
+  for (int8_t i=0; i < 6; i++) {
+    j = (prev_idx + 1 - i) % 6;
+    if (neighbours[j]->bug.has_value() &&
+        neighbours[(j+1) % 6]->bug.has_value() &&
+        neighbours[(j-1) % 6]->bug.has_value()) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+int Hexagon::FindCounterClockwiseMove(int prev_idx) const {
+  int j;
+  for (int8_t i=0; i < 6; i++) {
+    j = (prev_idx - 1 + i) % 6;
+    if (neighbours[j]->bug.has_value() &&
+        neighbours[(j-1) % 6]->bug.has_value() &&
+        neighbours[(j+1) % 6]->bug.has_value()) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+std::vector<Hexagon*> Hexagon::FindJumpMoves() const {
+  std::vector<Hexagon*> jumps;
+  Hexagon* b = Bottom();
+  for (Hexagon* n : b->neighbours) {
+    if (n->bug.has_value()) {
+      // TODO: filter gated
+      jumps.push_back(n->Top());
+    }
+  }
+  return jumps;
+}
+
+void Hexagon::GenerateMoves(BugType t, std::vector<HiveMove> &moves) const {
+  if (above != NULL) { return; }
+  switch (t) {
+    case kBee: GenerateBeeMoves(moves);
+    case kBeetle: GenerateBeetleMoves(moves);
+    case kAnt: GenerateAntMoves(moves);
+    case kGrasshopper: GenerateGrasshopperMoves(moves);
+    case kSpider: GenerateSpiderMoves(moves);
+    case kLadybug: GenerateLadybugMoves(moves);
+    case kMosquito: GenerateMosquitoMoves(moves);
+    case kPillbug: GeneratePillbugMoves(moves);
+    default: break;
+  };
+}
+
+void Hexagon::GenerateBeeMoves(std::vector<HiveMove> &moves) const {
+  std::unordered_set<int> beeMoves;
+  beeMoves.insert(FindClockwiseMove(0));
+  beeMoves.insert(FindClockwiseMove(3));
+  beeMoves.insert(FindCounterClockwiseMove(0));
+  beeMoves.insert(FindCounterClockwiseMove(3));
+  beeMoves.erase(-1);
+  for (int i : beeMoves) {
+    moves.push_back(HiveMove{false, false, bug.value().type, loc, neighbours[i]->loc});
+  }
+}
+
+void Hexagon::GenerateBeetleMoves(std::vector<HiveMove> &moves) const {
+  GenerateBeeMoves(moves);
+  for (Hexagon* h : FindJumpMoves()) {
+    moves.push_back(HiveMove{false, false, bug.value().type, loc, h->loc});
+  }
+}
+
+void Hexagon::GenerateAntMoves(std::vector<HiveMove> &moves) const {
+  std::unordered_set<Offset> antMoves;
+
+  int i = FindClockwiseMove(0);
+  int init_idx = i;
+  Hexagon* h = neighbours[i];
+  Hexagon* init_h = h;
+  while (i != -1 && (h != init_h || i != init_idx)) {
+    antMoves.insert(h->loc);
+
+    i = h->FindClockwiseMove(i);
+    h = h->neighbours[i];
+  }
+
+  for (Offset o : antMoves) {
+    moves.push_back(HiveMove{false, false, bug.value().type, loc, o});
+  }
+}
+
+void Hexagon::GenerateGrasshopperMoves(std::vector<HiveMove> &moves) const {
+  for (int8_t i=0; i < 6; i++) {
+    if (neighbours[i]->bug.has_value()) {
+      Hexagon* n = neighbours[i];
+      while(n->neighbours[i]->bug.has_value()) {
+        n = n->neighbours[i];
+      }
+      moves.push_back(HiveMove{false, false, bug.value().type, loc, neighbourOffset(n->loc, i)});
     }
   }
 }
+
+absl::optional<Offset> Hexagon::WalkThree(int i, bool clockwise) const {
+  Hexagon* h;
+  if (clockwise) {
+    int i = FindClockwiseMove(i);
+    h = neighbours[i];
+    if (i == -1) { return absl::nullopt; }
+    i = h->FindClockwiseMove(i);
+    h = h->neighbours[i];
+    i = FindClockwiseMove(i);
+    h = h->neighbours[i];
+  } else {
+    int i = FindCounterClockwiseMove(i);
+    h = neighbours[i];
+    if (i == -1) { return absl::nullopt; }
+    i = FindCounterClockwiseMove(i);
+    h = h->neighbours[i];
+    i = FindCounterClockwiseMove(i);
+    h = h->neighbours[i];
+    return i;
+  }
+  return h->loc;
+}
+
+void Hexagon::GenerateSpiderMoves(std::vector<HiveMove> &moves) const {
+  std::unordered_set<absl::optional<Offset>> spiderMoves;
+  spiderMoves.insert(WalkThree(0, true));
+  spiderMoves.insert(WalkThree(3, true));
+  spiderMoves.insert(WalkThree(0, false));
+  spiderMoves.insert(WalkThree(3, false));
+  spiderMoves.erase(absl::nullopt);
+  for (absl::optional<Offset> o : spiderMoves) {
+    moves.push_back(HiveMove{false, false, bug.value().type, loc, o.value()});
+  }
+}
+
+void Hexagon::GenerateLadybugMoves(std::vector<HiveMove> &moves) const {
+  std::unordered_set<Offset> ladybugMoves;
+  for (Hexagon* n : FindJumpMoves()) {
+    for (Hexagon* o : n->FindJumpMoves()) {
+      for (Hexagon* p : o->neighbours) {
+        if (!p->bug.has_value()) {
+          ladybugMoves.insert(p->loc);
+        }
+      }
+    }
+  }
+  for (Offset o : ladybugMoves) {
+    moves.push_back(HiveMove{false, false, bug.value().type, loc, o});
+  }
+}
+
+void Hexagon::GenerateMosquitoMoves(std::vector<HiveMove> &moves) const {
+  std::unordered_set<BugType> mirrors;
+  for (Hexagon* h : neighbours) {
+    if (h != NULL && h->bug.has_value()) {
+      mirrors.insert(h->bug.value().type);
+    }
+  }
+  for (BugType t : mirrors) {
+    GenerateMoves(t, moves);
+  }
+}
+
+void Hexagon::GeneratePillbugMoves(std::vector<HiveMove> &moves) const {
+  GenerateBeeMoves(moves);
+  std::vector<Offset> emptyNeighbours;
+  for (Hexagon* n : neighbours) {
+    if (!n->bug.has_value()) {
+      emptyNeighbours.push_back(n->loc);
+    }
+  }
+  for (Hexagon * n : neighbours) {
+    if (n->bug.has_value()) {
+      for (Offset o : emptyNeighbours) {
+        moves.push_back(HiveMove{false, false, bug.value().type, n->loc, o});
+      }
+    }
+  }
+}
+
+BugCollection::BugCollection() :
+  bug_counts_({ 1, 2, 3, 3, 2, 1, 1, 1 }) {}
 
 bool BugCollection::HasBug(BugType t) const {
   return !bug_counts_[t] == 0;
 }
 
-Hexagon* BugCollection::UseBug(BugType t) {
+bool BugCollection::UseBug(BugType t) {
   if (HasBug(t)) {
     bug_counts_[t]--;
-    return &hexagons_[bug_series[t] + bug_counts_[t]];
+    return true;
   }
-  return NULL;
+  return false;
 }
 
 HiveBoard::HiveBoard(int board_size) :
   board_size_(board_size),
-  board_height_(kBoardHeight),
-  bug_collections_ ({ BugCollection(Color::kBlack), BugCollection(Color::kWhite) })
+  board_height_(kBoardHeight)
 {
   Clear();
+
+  // Initialize hexagon neighbours
+  // TODO: make sure this is done at compile time
+  for (int8_t x=0; x < kBoardSize; x++) {
+    for (int8_t y=0; y < kBoardSize; y++) {
+      for (int8_t z=0; z < kBoardHeight+1; z++) {
+        Offset o = Offset(x, y, z);
+        Hexagon* h = GetHexagon(o);
+        h->loc = o;
+        std::array<Offset, 6> neighbours = o.neighbours();
+        for (int n=0; n < 6; n++) {
+          h->neighbours[n] = &board_[neighbours[n].index];
+        }
+        h->above = GetHexagon(h->loc.x, h->loc.y, h->loc.z + 1);
+        h->below = GetHexagon(h->loc.x, h->loc.y, h->loc.z - 1);
+      }
+    }
+  }
 }
 
 void HiveBoard::Clear() {  
   for (Hexagon* h : hexagons_) {
-    bug_collections_[h->bug.color].ReturnBug(h);
+    bug_collections_[h->bug.value().color].ReturnBug(h->bug.value().type);
   }
-
   hexagons_.clear();
 
   zobrist_hash_ = 0;
-  std::fill(begin(board_), end(board_), NULL);
-  std::fill(begin(observation_), end(observation_), 0);
+  std::fill(begin(observation), end(observation), 0);
+
   std::fill(begin(visited_), end(visited_), false);
 }
 
-int HiveBoard::OffsetToIndex(Offset o) const {
-  return o.x + kBoardSize*o.y + kBoardSize*kBoardSize*o.z;
+Hexagon* HiveBoard::GetHexagon(Offset o) {
+  return &board_[o.index];
 }
 
-absl::optional<Color> HiveBoard::OffsetOwner(Offset o) const {
-  Hexagon* h = GetHexagon(o);
-  if (h == NULL) { return absl::nullopt; }
+Hexagon* HiveBoard::GetHexagon(int8_t x, int8_t y, int8_t z) {
+  return &board_[Offset(x, y, z).index];
+}
+
+absl::optional<Color> HiveBoard::HexagonOwner(Hexagon* h) const {
   absl::optional<Color> c = absl::nullopt;
-  for (Offset p : neighbours(o)) {
-    Hexagon* n = GetHexagon(p);
-    if (n != NULL) {
-      c = n->bug.color;
-      if (c.value() != n->bug.color) {
+  for (Hexagon* n : h->neighbours) {
+    if (n->bug.has_value()) {
+      c = n->bug.value().color;
+      if (c.value() != n->bug.value().color) {
         return absl::nullopt;
       }
     }
@@ -154,41 +395,72 @@ absl::optional<Color> HiveBoard::OffsetOwner(Offset o) const {
   return c;
 }
 
-void HiveBoard::CacheOffsetOwner(Offset o) {
-  absl::optional<Color> c = OffsetOwner(o);
+void HiveBoard::CacheHexagonOwner(Hexagon* h) {
+  absl::optional<Color> c = HexagonOwner(h);
   if (c.has_value()) {
-    available_[c.value()].insert(OffsetToIndex(o));
+    available_[c.value()].insert(h->loc);
   } else {
-    available_[kBlack].erase(OffsetToIndex(o));
-    available_[kWhite].erase(OffsetToIndex(o));
+    available_[kBlack].erase(h->loc);
+    available_[kWhite].erase(h->loc);
   }
 }
 
-Hexagon* HiveBoard::TakeHexagon(Offset o) {
-  Hexagon* h = GetHexagon(o);
-  if (h == NULL) { return; }
-  CacheOffsetOwner(o);
-  for (Offset p : neighbours(o)) {
-    CacheOffsetOwner(p);
+absl::optional<Bug> HiveBoard::RemoveBug(Hexagon* h) {
+  absl::optional<Bug> b = h->bug;
+  h->bug = absl::nullopt;
+  CacheHexagonOwner(h);
+  for (Hexagon* n : h->neighbours) {
+    CacheHexagonOwner(n);
   }
-  return h;
+  return b;
+}
+
+void HiveBoard::PlaceBug(Offset o, BugType b) {
+  Hexagon* h = GetHexagon(o);
+  CacheHexagonOwner(h);
+  for (Hexagon* n : h->neighbours) {
+    CacheHexagonOwner(n);
+  }
 }
 
 void HiveBoard::PlayMove(HiveMove &m) {
   if (m.pass) return;
-  Hexagon* h;
+  BugType bt;
   if (m.place) {
-    h = bug_collections_[to_play_].UseBug(m.bug);
+    bt = m.bug;
+    if (!bug_collections_[to_play_].UseBug(bt)) {
+      return;
+    }
   } else {
     // TODO: Remove bug from board and set to h
-    TakeHexagon(m.from);
+    absl::optional<Bug> b = RemoveBug(GetHexagon(m.from));
+    if (!b.has_value()) {
+      return;
+    }
+    bt = b.value().type;
   }
-  Hexagon* h = GetHexagon(m.to);
-  CacheOffsetOwner(m.to);
-  for (Offset p : neighbours(m.to)) {
-    CacheOffsetOwner(p);
-  }
+  PlaceBug(m.to, bt);
 }
+
+void HiveBoard::GenerateLegalMoves() {
+  legalMoves_.clear();
+  for (Hexagon* h : hexagons_) {
+    // TODO: skip if moving disconnects the hive
+    h->GenerateMoves(h->bug.value().type, legalMoves_);
+  }
+  for (Offset o : available_[to_play_]) {
+    for (int8_t bug=0; bug < kNumBugs; bug++) {
+      HiveMove m = HiveMove{
+        false, true, (BugType) bug,
+        Offset{}, o.index
+      };
+      legalMoves_.push_back(m);
+    }
+  }
+  if (legalMoves_.size() == 0) {
+    legalMoves_.push_back(HiveMove{true});
+  }
+};
 
 /*
 bool HiveBoard::IsLegalMove(HiveMove m) const {
@@ -198,17 +470,7 @@ bool HiveBoard::IsLegalMove(HiveMove m) const {
 
   if (m.place && bug_collections_[to_play_].HasBug(m.bug)) return false;
 
-  // We're better off iterating over legal moves than trying to find them all
-  // TODO
-  //bool found = false;
-  //GenerateLegalMoves([&found, &tested_move](const Move& found_move) {
-  //  if (tested_move == found_move) {
-  //    found = true;
-  //    return false;  // We don't need any more moves.
-  //  }
-  //  return true;
-  //});
-  //return found;
+  return legalMoves_.
 }
 */
 
