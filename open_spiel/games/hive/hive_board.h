@@ -38,7 +38,7 @@ inline constexpr int kBoardSize = 29;
 inline constexpr int kBoardHeight = 8;
 inline constexpr int kNumHexagons = kBoardSize*kBoardSize*kBoardHeight;
 
-const chess_common::ZobristTable<uint64_t, 2*kNumBugs, kBoardSize, kBoardSize, kBoardHeight> zobristTable(/*seed=*/2346);
+const chess_common::ZobristTable<uint64_t, 2, kNumBugs, kBoardSize, kBoardSize, kBoardHeight> zobristTable(/*seed=*/2346);
 
 // 1 Bee
 // 2 Beetles
@@ -163,7 +163,10 @@ class Hexagon {
   Hexagon* below;
   std::array<Hexagon*, 6> neighbours;
 
+  Hexagon* parent;
   bool visited;
+  int num;
+  int low;
 
   void Hexagon::GenerateMoves(BugType t, std::vector<HiveMove> &moves) const;
 };
@@ -194,6 +197,8 @@ struct HiveMove {
 class BugCollection {
  public:
   explicit BugCollection();
+
+  void Reset();
 
   void ReturnBug(BugType t);
 
@@ -228,6 +233,8 @@ class HiveBoard {
   absl::optional<Color> HexagonOwner(Hexagon* h) const;
   void CacheHexagonOwner(Hexagon* h);
 
+  void CacheUnpinnedHexagons();
+
   void GenerateLegalMoves();
 
   int8_t board_size_;
@@ -239,7 +246,10 @@ class HiveBoard {
   std::array<BugCollection, 2> bug_collections_;
 
   std::array<std::unordered_set<Offset>, 2> available_;
-  std::vector<Hexagon*> hexagons_;
+  std::unordered_set<Hexagon*> unpinned_;
+
+  Hexagon* root_;
+  Hexagon* last_moved_;
   std::array<Hexagon, kBoardSize*kBoardSize*(kBoardHeight+1)> board_;
   std::array<bool, kBoardSize*kBoardSize> visited_;
 

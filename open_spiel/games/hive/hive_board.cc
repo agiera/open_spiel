@@ -15,6 +15,7 @@
 #include "open_spiel/games/hive/hive_board.h"
 
 #include <vector>
+#include <stack>
 #include <iomanip>
 
 #include "open_spiel/abseil-cpp/absl/random/uniform_int_distribution.h"
@@ -314,6 +315,8 @@ void Hexagon::GeneratePillbugMoves(std::vector<HiveMove> &moves) const {
     }
   }
   for (Hexagon * n : neighbours) {
+    // TODO: fix
+    // if (n->bug.has_value() && n != last_moved_) {
     if (n->bug.has_value()) {
       for (Offset o : emptyNeighbours) {
         moves.push_back(HiveMove{false, false, bug.value().type, n->loc, o});
@@ -324,6 +327,10 @@ void Hexagon::GeneratePillbugMoves(std::vector<HiveMove> &moves) const {
 
 BugCollection::BugCollection() :
   bug_counts_({ 1, 2, 3, 3, 2, 1, 1, 1 }) {}
+
+void BugCollection::Reset() {
+  bug_counts_ = { 1, 2, 3, 3, 2, 1, 1, 1 };
+}
 
 bool BugCollection::HasBug(BugType t) const {
   return !bug_counts_[t] == 0;
@@ -363,10 +370,10 @@ HiveBoard::HiveBoard(int board_size) :
 }
 
 void HiveBoard::Clear() {  
-  for (Hexagon* h : hexagons_) {
-    bug_collections_[h->bug.value().color].ReturnBug(h->bug.value().type);
-  }
-  hexagons_.clear();
+  root_ = NULL;
+
+  bug_collections_[kBlack].Reset();
+  bug_collections_[kWhite].Reset();
 
   zobrist_hash_ = 0;
   std::fill(begin(observation), end(observation), 0);
@@ -405,9 +412,60 @@ void HiveBoard::CacheHexagonOwner(Hexagon* h) {
   }
 }
 
+void HiveBoard::CacheUnpinnedHexagons() {
+  // TODO: there might be a way to update val and min such that we don't have to redo this
+  // Or maybe it can only be avoided in some circumstances
+  unpinned_.empty();
+  if (root_ == NULL) { return; }
+  std::stack<Hexagon*> preorderStack;
+  std::stack<Hexagon*> postorderStack;
+  preorderStack.push(root_);
+  int num = 0;
+  // Pre-order traversal
+  // Resets num and low for all nodes
+  // Adds all nodes to unpinned_ as candidates
+  while (!preorderStack.empty()) {
+    Hexagon* curNode = preorderStack.top();
+    preorderStack.pop();
+    postorderStack.push(curNode);
+    unpinned_.insert(curNode);
+    curNode->visited = true;
+    curNode->num = num++;
+    curNode->low = curNode->num;
+    for (Hexagon* n : curNode->neighbours) {
+      if (!n->visited) {
+        preorderStack.push(n);
+      }
+    }
+  }
+  // Post-order traversal
+  // Calculates each node's distance to the root
+  // Resets visited attribute
+  // Removes articulation nodes from unpinned_
+  while(!postorderStack.empty()) {
+    Hexagon* curNode = postorderStack.top();
+    postorderStack.pop();
+    curNode->visited = false;
+    for (Hexagon* n : curNode->neighbours) {
+      // visited acts as an inverse here because of the fist traversal
+      if (n->visited) {
+        if (n->low >= curNode->num) {
+          unpinned_.erase(curNode);
+        }
+        n->low = std::min(n->low, curNode->num);
+      // Back edge
+      } else {
+        curNode->low = std::min(curNode->low, n->num);
+      }
+    }
+  }
+}
+
 absl::optional<Bug> HiveBoard::RemoveBug(Hexagon* h) {
-  absl::optional<Bug> b = h->bug;
+  if (!h->bug.has_value()) { return h->bug; }
+  Bug b = h->bug.value();
   h->bug = absl::nullopt;
+  zobrist_hash_ ^= zobristTable[b.color][b.type][h->loc.x][h->loc.y][h->loc.z];
   CacheHexagonOwner(h);
   for (Hexagon* n : h->neighbours) {
     CacheHexagonOwner(n);
@@ -416,11 +474,15 @@ absl::optional<Bug> HiveBoard::RemoveBug(Hexagon* h) {
 }
 
 void HiveBoard::PlaceBug(Offset o, BugType b) {
+  zobrist_hash_ ^= zobristTable[to_play_][b][o.x][o.y][o.z];
   Hexagon* h = GetHexagon(o);
+  h->bug = Bug{to_play_, b};
+  root_ = h;
   CacheHexagonOwner(h);
   for (Hexagon* n : h->neighbours) {
     CacheHexagonOwner(n);
   }
+  CacheUnpinnedHexagons();
 }
 
 void HiveBoard::PlayMove(HiveMove &m) {
@@ -440,12 +502,12 @@ void HiveBoard::PlayMove(HiveMove &m) {
     bt = b.value().type;
   }
   PlaceBug(m.to, bt);
+  to_play_ = (Color) !to_play_;
 }
 
 void HiveBoard::GenerateLegalMoves() {
   legalMoves_.clear();
-  for (Hexagon* h : hexagons_) {
-    // TODO: skip if moving disconnects the hive
+  for (Hexagon* h : unpinned_) {
     h->GenerateMoves(h->bug.value().type, legalMoves_);
   }
   for (Offset o : available_[to_play_]) {
