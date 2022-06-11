@@ -23,13 +23,11 @@
 #include <unordered_set>
 #include <set>
 
+#include "open_spiel/games/chess/chess_common.h"
 #include "open_spiel/spiel_utils.h"
 
 namespace open_spiel {
 namespace hive {
-
-// Constants.
-inline constexpr int kNumPlayers = 2;
 
 // The maximum length the tiles can span is 28, so the hive can never wrap
 // around and complete the connection
@@ -37,6 +35,9 @@ inline constexpr int kBoardSize = 29;
 // there can be a stack of bugs up to 7 high
 inline constexpr int kBoardHeight = 8;
 inline constexpr int kNumHexagons = kBoardSize*kBoardSize*kBoardHeight;
+
+inline constexpr Player kWhite = 0;
+inline constexpr Player kBlack = 1;
 
 const chess_common::ZobristTable<uint64_t, 2, kNumBugs, kBoardSize, kBoardSize, kBoardHeight> zobristTable(/*seed=*/2346);
 
@@ -50,22 +51,9 @@ const chess_common::ZobristTable<uint64_t, 2, kNumBugs, kBoardSize, kBoardSize, 
 // 1 Pillbug
 // 14 bugs per side
 inline constexpr int kNumBugTypes = 8;
-inline constexpr int kNumCellStates = 2*kNumBugTypes + 1;
 inline constexpr int kNumBugs = 14;
 // bug_series[i] is the number of bugs with type < i
 inline constexpr std::array<int8_t, 8> bug_series = {0, 1, 3, 6, 9, 11, 12, 13};
-
-enum Color : int8_t { kBlack = 0, kWhite = 1 };
-
-inline Color OppColor(Color color) {
-  return color == Color::kWhite ? Color::kBlack : Color::kWhite;
-}
-
-std::string ColorToString(Color c);
-
-inline std::ostream& operator<<(std::ostream& stream, Color c) {
-  return stream << ColorToString(c);
-}
 
 enum BugType : int8_t {
   kBee = 0,
@@ -90,7 +78,7 @@ std::string BugTypeToString(BugType b, bool uppercase = true);
 
 struct Bug {
   bool operator==(const Bug& other) const {
-    return type == other.type && color == other.color;
+    return type == other.type && player == other.player;
   }
 
   bool operator!=(const Bug& other) const { return !(*this == other); }
@@ -98,7 +86,7 @@ struct Bug {
   std::string ToUnicode() const;
   std::string ToString() const;
 
-  Color color;
+  Player player;
   BugType type;
 };
 
@@ -168,6 +156,7 @@ class Hexagon {
   int num;
   int low;
 
+  bool Hexagon::IsSurrounded();
   void Hexagon::GenerateMoves(BugType t, std::vector<HiveMove> &moves) const;
 };
 
@@ -212,17 +201,24 @@ class BugCollection {
 // Simple Hive board.
 class HiveBoard {
  public:
-  explicit HiveBoard(int board_size);
+  explicit HiveBoard();
 
   void Clear();
 
   bool IsLegalMove(HiveMove& m) const;
-
   void PlayMove(HiveMove& m);
+  void UndoMove(HiveMove& m);
 
   std::string ToString();
 
+  Player to_play;
+  Player outcome;
+  bool is_terminal;
+
   std::array<int8_t, kBoardSize*kBoardSize*kBoardHeight> observation;
+
+  // TODO: figure out how to normalize for transations and rotations
+  uint64_t zobrist_hash;
 
  private:
   Hexagon* GetHexagon(Offset o);
@@ -230,26 +226,25 @@ class HiveBoard {
   absl::optional<Bug> RemoveBug(Hexagon* h);
   void PlaceBug(Offset o, BugType b);
 
-  absl::optional<Color> HexagonOwner(Hexagon* h) const;
+  Player HexagonOwner(Hexagon* h) const;
   void CacheHexagonOwner(Hexagon* h);
 
   void CacheUnpinnedHexagons();
 
-  void GenerateLegalMoves();
+  void CacheOutcome();
+  void CacheIsTerminal();
 
-  int8_t board_size_;
-  int8_t board_height_;
+  void CacheLegalMoves();
 
-  uint64_t zobrist_hash_;
-
-  Color to_play_;
   std::array<BugCollection, 2> bug_collections_;
 
   std::array<std::unordered_set<Offset>, 2> available_;
   std::unordered_set<Hexagon*> unpinned_;
 
-  Hexagon* root_;
+  std::unordered_set<Hexagon*> hexagons_;
+  std::array<Hexagon*, 2> bees_;
   Hexagon* last_moved_;
+
   std::array<Hexagon, kBoardSize*kBoardSize*(kBoardHeight+1)> board_;
   std::array<bool, kBoardSize*kBoardSize> visited_;
 

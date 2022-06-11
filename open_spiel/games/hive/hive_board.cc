@@ -21,6 +21,7 @@
 #include "open_spiel/abseil-cpp/absl/random/uniform_int_distribution.h"
 #include "open_spiel/abseil-cpp/absl/strings/str_cat.h"
 #include "open_spiel/games/chess/chess_common.h"
+#include "open_spiel/spiel_globals.h"
 #include "open_spiel/spiel_utils.h"
 
 namespace open_spiel {
@@ -36,8 +37,8 @@ std::string BugTypeToString(BugType t, bool uppercase) {
 
 std::string Bug::ToString() const {
   std::string base = BugTypeToString(type);
-  return color == Color::kWhite ? absl::AsciiStrToUpper(base)
-                                : absl::AsciiStrToLower(base);
+  return player == kWhite ? absl::AsciiStrToUpper(base)
+                          : absl::AsciiStrToLower(base);
 }
 
 // 6 adjacent hexagons
@@ -332,6 +333,10 @@ void BugCollection::Reset() {
   bug_counts_ = { 1, 2, 3, 3, 2, 1, 1, 1 };
 }
 
+void BugCollection::ReturnBug(BugType b) {
+  bug_counts_[b]++;
+}
+
 bool BugCollection::HasBug(BugType t) const {
   return !bug_counts_[t] == 0;
 }
@@ -344,10 +349,7 @@ bool BugCollection::UseBug(BugType t) {
   return false;
 }
 
-HiveBoard::HiveBoard(int board_size) :
-  board_size_(board_size),
-  board_height_(kBoardHeight)
-{
+HiveBoard::HiveBoard() {
   Clear();
 
   // Initialize hexagon neighbours
@@ -370,12 +372,15 @@ HiveBoard::HiveBoard(int board_size) :
 }
 
 void HiveBoard::Clear() {  
-  root_ = NULL;
+  hexagons_.empty();
+  bees_ = {NULL, NULL};
+  outcome = kInvalidPlayer;
+  is_terminal = false;
 
   bug_collections_[kBlack].Reset();
   bug_collections_[kWhite].Reset();
 
-  zobrist_hash_ = 0;
+  zobrist_hash = 0;
   std::fill(begin(observation), end(observation), 0);
 
   std::fill(begin(visited_), end(visited_), false);
@@ -389,23 +394,23 @@ Hexagon* HiveBoard::GetHexagon(int8_t x, int8_t y, int8_t z) {
   return &board_[Offset(x, y, z).index];
 }
 
-absl::optional<Color> HiveBoard::HexagonOwner(Hexagon* h) const {
-  absl::optional<Color> c = absl::nullopt;
+Player HiveBoard::HexagonOwner(Hexagon* h) const {
+  Player p = kInvalidPlayer;
   for (Hexagon* n : h->neighbours) {
     if (n->bug.has_value()) {
-      c = n->bug.value().color;
-      if (c.value() != n->bug.value().color) {
-        return absl::nullopt;
+      p = n->bug.value().player;
+      if (p != n->bug.value().player) {
+        return kInvalidPlayer;
       }
     }
   }
-  return c;
+  return p;
 }
 
 void HiveBoard::CacheHexagonOwner(Hexagon* h) {
-  absl::optional<Color> c = HexagonOwner(h);
-  if (c.has_value()) {
-    available_[c.value()].insert(h->loc);
+  Player p = HexagonOwner(h);
+  if (p != kInvalidPlayer) {
+    available_[p].insert(h->loc);
   } else {
     available_[kBlack].erase(h->loc);
     available_[kWhite].erase(h->loc);
@@ -416,10 +421,10 @@ void HiveBoard::CacheUnpinnedHexagons() {
   // TODO: there might be a way to update val and min such that we don't have to redo this
   // Or maybe it can only be avoided in some circumstances
   unpinned_.empty();
-  if (root_ == NULL) { return; }
+  if (hexagons_.empty()) { return; }
   std::stack<Hexagon*> preorderStack;
   std::stack<Hexagon*> postorderStack;
-  preorderStack.push(root_);
+  preorderStack.push(*hexagons_.begin());
   int num = 0;
   // Pre-order traversal
   // Resets num and low for all nodes
@@ -465,7 +470,12 @@ absl::optional<Bug> HiveBoard::RemoveBug(Hexagon* h) {
   if (!h->bug.has_value()) { return h->bug; }
   Bug b = h->bug.value();
   h->bug = absl::nullopt;
-  zobrist_hash_ ^= zobristTable[b.color][b.type][h->loc.x][h->loc.y][h->loc.z];
+  hexagons_.erase(h);
+  if (b.type == kBee) {
+    bees_[b.player] = NULL;
+  }
+  bug_collections_[b.player].ReturnBug(b.type);
+  zobrist_hash ^= zobristTable[b.player][b.type][h->loc.x][h->loc.y][h->loc.z];
   CacheHexagonOwner(h);
   for (Hexagon* n : h->neighbours) {
     CacheHexagonOwner(n);
@@ -474,10 +484,16 @@ absl::optional<Bug> HiveBoard::RemoveBug(Hexagon* h) {
 }
 
 void HiveBoard::PlaceBug(Offset o, BugType b) {
-  zobrist_hash_ ^= zobristTable[to_play_][b][o.x][o.y][o.z];
+  if (!bug_collections_[to_play].UseBug(b)) {
+    return;
+  }
+  zobrist_hash ^= zobristTable[to_play][b][o.x][o.y][o.z];
   Hexagon* h = GetHexagon(o);
-  h->bug = Bug{to_play_, b};
-  root_ = h;
+  h->bug = Bug{to_play, b};
+  hexagons_.insert(h);
+  if (b == kBee) {
+    bees_[to_play] = h;
+  }
   CacheHexagonOwner(h);
   for (Hexagon* n : h->neighbours) {
     CacheHexagonOwner(n);
@@ -485,32 +501,12 @@ void HiveBoard::PlaceBug(Offset o, BugType b) {
   CacheUnpinnedHexagons();
 }
 
-void HiveBoard::PlayMove(HiveMove &m) {
-  if (m.pass) return;
-  BugType bt;
-  if (m.place) {
-    bt = m.bug;
-    if (!bug_collections_[to_play_].UseBug(bt)) {
-      return;
-    }
-  } else {
-    // TODO: Remove bug from board and set to h
-    absl::optional<Bug> b = RemoveBug(GetHexagon(m.from));
-    if (!b.has_value()) {
-      return;
-    }
-    bt = b.value().type;
-  }
-  PlaceBug(m.to, bt);
-  to_play_ = (Color) !to_play_;
-}
-
-void HiveBoard::GenerateLegalMoves() {
+void HiveBoard::CacheLegalMoves() {
   legalMoves_.clear();
   for (Hexagon* h : unpinned_) {
     h->GenerateMoves(h->bug.value().type, legalMoves_);
   }
-  for (Offset o : available_[to_play_]) {
+  for (Offset o : available_[to_play]) {
     for (int8_t bug=0; bug < kNumBugs; bug++) {
       HiveMove m = HiveMove{
         false, true, (BugType) bug,
@@ -524,13 +520,66 @@ void HiveBoard::GenerateLegalMoves() {
   }
 };
 
+void HiveBoard::CacheOutcome() {
+  // TODO: check if it's possible to lose whithout an opposing bee
+  if (bees_[kWhite] == NULL || bees_[kBlack] == NULL) {
+    outcome = kInvalidPlayer;
+    return;
+  }
+  if (bees_[kWhite]->IsSurrounded() ^ bees_[kBlack]->IsSurrounded()) {
+    outcome = (Player) bees_[kBlack]->IsSurrounded();
+  } else {
+    outcome = kInvalidPlayer;
+  }
+}
+
+void HiveBoard::CacheIsTerminal() {
+  is_terminal = bees_[kWhite]->IsSurrounded() || bees_[kBlack]->IsSurrounded();
+}
+
+void HiveBoard::PlayMove(HiveMove &m) {
+  if (m.pass) {
+    to_play = (Player) !to_play;
+    return;
+  }
+  if (m.place) {
+    PlaceBug(m.to, m.bug);
+  } else {
+    // TODO: Remove bug from board and set to h
+    absl::optional<Bug> b = RemoveBug(GetHexagon(m.from));
+    if (!b.has_value()) {
+      return;
+    }
+    PlaceBug(m.to, b.value().type);
+  }
+  CacheOutcome();
+  CacheIsTerminal();
+  to_play = (Player) !to_play;
+}
+
+void HiveBoard::UndoMove(HiveMove &m) {
+  if (m.pass) {
+    to_play = (Player) !to_play;
+    return;
+  } else if (m.place) {
+    Hexagon* h = GetHexagon(m.to);
+    RemoveBug(h);
+  } else {
+    HiveMove m_inverse = HiveMove{ false, false, m.bug, m.to, m.from };
+    PlayMove(m_inverse);
+  }
+  CacheOutcome();
+  CacheIsTerminal();
+  to_play = (Player) !to_play;
+}
+
 /*
 bool HiveBoard::IsLegalMove(HiveMove m) const {
   if (m.pass) return true;
   if (!m.place && m.from_hex.isInvalid()) return false;
   if (m.to_hex.isInvalid()) return false;
 
-  if (m.place && bug_collections_[to_play_].HasBug(m.bug)) return false;
+  if (m.place && bug_collections_[to_play].HasBug(m.bug)) return false;
 
   return legalMoves_.
 }
@@ -547,7 +596,7 @@ std::ostream& operator<<(std::ostream& os, const HiveBoard& board) {
 }
 
 HiveBoard BoardFromFEN(const std::string& fen) {
-  HiveBoard board(kBoardSize);
+  HiveBoard board();
 }
 
 }  // namespace hive
