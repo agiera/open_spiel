@@ -127,7 +127,7 @@ Hexagon::Hexagon() {
 
 Hexagon* Hexagon::Bottom() const {
   Hexagon* h = below;
-  while (h->loc.z != 0) {
+  while (h->loc.z != 0 && h->above->bug.has_value()) {
     h = h->below;
   }
   return h;
@@ -135,7 +135,7 @@ Hexagon* Hexagon::Bottom() const {
 
 Hexagon* Hexagon::Top() const {
   Hexagon* h = above;
-  while (h->loc.z != kBoardHeight-1) {
+  while (h->loc.z != kBoardHeight-1 && h->above->bug.has_value()) {
     h = h->above;
   }
   return h;
@@ -202,14 +202,14 @@ void Hexagon::GenerateBeeMoves(std::vector<HiveMove> &moves) const {
   beeMoves.insert(FindCounterClockwiseMove(3));
   beeMoves.erase(-1);
   for (int i : beeMoves) {
-    moves.push_back(HiveMove{false, false, bug.value().type, loc, neighbours[i]->loc});
+    moves.push_back(HiveMove{false, false, bug->type, loc, neighbours[i]->loc});
   }
 }
 
 void Hexagon::GenerateBeetleMoves(std::vector<HiveMove> &moves) const {
   GenerateBeeMoves(moves);
   for (Hexagon* h : FindJumpMoves()) {
-    moves.push_back(HiveMove{false, false, bug.value().type, loc, h->loc});
+    moves.push_back(HiveMove{false, false, bug->type, loc, h->loc});
   }
 }
 
@@ -228,7 +228,7 @@ void Hexagon::GenerateAntMoves(std::vector<HiveMove> &moves) const {
   }
 
   for (Offset o : antMoves) {
-    moves.push_back(HiveMove{false, false, bug.value().type, loc, o});
+    moves.push_back(HiveMove{false, false, bug->type, loc, o});
   }
 }
 
@@ -239,7 +239,7 @@ void Hexagon::GenerateGrasshopperMoves(std::vector<HiveMove> &moves) const {
       while(n->neighbours[i]->bug.has_value()) {
         n = n->neighbours[i];
       }
-      moves.push_back(HiveMove{false, false, bug.value().type, loc, neighbourOffset(n->loc, i)});
+      moves.push_back(HiveMove{false, false, bug->type, loc, neighbourOffset(n->loc, i)});
     }
   }
 }
@@ -275,7 +275,7 @@ void Hexagon::GenerateSpiderMoves(std::vector<HiveMove> &moves) const {
   spiderMoves.insert(WalkThree(3, false));
   spiderMoves.erase(absl::nullopt);
   for (absl::optional<Offset> o : spiderMoves) {
-    moves.push_back(HiveMove{false, false, bug.value().type, loc, o.value()});
+    moves.push_back(HiveMove{false, false, bug->type, loc, *o});
   }
 }
 
@@ -291,7 +291,7 @@ void Hexagon::GenerateLadybugMoves(std::vector<HiveMove> &moves) const {
     }
   }
   for (Offset o : ladybugMoves) {
-    moves.push_back(HiveMove{false, false, bug.value().type, loc, o});
+    moves.push_back(HiveMove{false, false, bug->type, loc, o});
   }
 }
 
@@ -299,7 +299,7 @@ void Hexagon::GenerateMosquitoMoves(std::vector<HiveMove> &moves) const {
   std::unordered_set<BugType> mirrors;
   for (Hexagon* h : neighbours) {
     if (h != NULL && h->bug.has_value()) {
-      mirrors.insert(h->bug.value().type);
+      mirrors.insert(h->bug->type);
     }
   }
   for (BugType t : mirrors) {
@@ -320,7 +320,7 @@ void Hexagon::GeneratePillbugMoves(std::vector<HiveMove> &moves) const {
     // if (n->bug.has_value() && n != last_moved_) {
     if (n->bug.has_value()) {
       for (Offset o : emptyNeighbours) {
-        moves.push_back(HiveMove{false, false, bug.value().type, n->loc, o});
+        moves.push_back(HiveMove{false, false, bug->type, n->loc, o});
       }
     }
   }
@@ -356,7 +356,7 @@ HiveBoard::HiveBoard() {
   // TODO: make sure this is done at compile time
   for (int8_t x=0; x < kBoardSize; x++) {
     for (int8_t y=0; y < kBoardSize; y++) {
-      for (int8_t z=0; z < kBoardHeight+1; z++) {
+      for (int8_t z=0; z < kBoardHeight; z++) {
         Offset o = Offset(x, y, z);
         Hexagon* h = GetHexagon(o);
         h->loc = o;
@@ -379,6 +379,10 @@ void HiveBoard::Clear() {
 
   bug_collections_[kBlack].Reset();
   bug_collections_[kWhite].Reset();
+  
+  for (Hexagon &h : board_) {
+    h.bug = absl::nullopt;
+  }
 
   zobrist_hash = 0;
   std::fill(begin(observation), end(observation), 0);
@@ -398,8 +402,8 @@ Player HiveBoard::HexagonOwner(Hexagon* h) const {
   Player p = kInvalidPlayer;
   for (Hexagon* n : h->neighbours) {
     if (n->bug.has_value()) {
-      p = n->bug.value().player;
-      if (p != n->bug.value().player) {
+      p = n->bug->player;
+      if (p != n->bug->player) {
         return kInvalidPlayer;
       }
     }
@@ -418,8 +422,9 @@ void HiveBoard::CacheHexagonOwner(Hexagon* h) {
 }
 
 void HiveBoard::CacheUnpinnedHexagons() {
-  // TODO: there might be a way to update val and min such that we don't have to redo this
-  // Or maybe it can only be avoided in some circumstances
+  // TODO: Find or create an articulation point vertex streaming algorithm.
+  //       It's also possible there could be some optimizations for
+  //       hexagon grid or planar graphs.
   unpinned_.empty();
   if (hexagons_.empty()) { return; }
   std::stack<Hexagon*> preorderStack;
@@ -468,7 +473,7 @@ void HiveBoard::CacheUnpinnedHexagons() {
 
 absl::optional<Bug> HiveBoard::RemoveBug(Hexagon* h) {
   if (!h->bug.has_value()) { return h->bug; }
-  Bug b = h->bug.value();
+  Bug b = *h->bug;
   h->bug = absl::nullopt;
   hexagons_.erase(h);
   if (b.type == kBee) {
@@ -501,10 +506,10 @@ void HiveBoard::PlaceBug(Offset o, BugType b) {
   CacheUnpinnedHexagons();
 }
 
-void HiveBoard::CacheLegalMoves() {
-  legalMoves_.clear();
+std::vector<HiveMove> HiveBoard::LegalMoves() const {
+  std::vector<HiveMove> legal_moves;
   for (Hexagon* h : unpinned_) {
-    h->GenerateMoves(h->bug.value().type, legalMoves_);
+    h->GenerateMoves(h->bug->type, legal_moves);
   }
   for (Offset o : available_[to_play]) {
     for (int8_t bug=0; bug < kNumBugs; bug++) {
@@ -512,12 +517,13 @@ void HiveBoard::CacheLegalMoves() {
         false, true, (BugType) bug,
         Offset{}, o.index
       };
-      legalMoves_.push_back(m);
+      legal_moves.push_back(m);
     }
   }
-  if (legalMoves_.size() == 0) {
-    legalMoves_.push_back(HiveMove{true});
+  if (legal_moves.size() == 0) {
+    legal_moves.push_back(HiveMove{true});
   }
+  return legal_moves;
 };
 
 void HiveBoard::CacheOutcome() {
@@ -550,8 +556,9 @@ void HiveBoard::PlayMove(HiveMove &m) {
     if (!b.has_value()) {
       return;
     }
-    PlaceBug(m.to, b.value().type);
+    PlaceBug(m.to, b->type);
   }
+  // TODO: lazily eval legal moves, add getter
   CacheOutcome();
   CacheIsTerminal();
   to_play = (Player) !to_play;

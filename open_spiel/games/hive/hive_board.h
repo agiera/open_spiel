@@ -33,7 +33,7 @@ namespace hive {
 // around and complete the connection
 inline constexpr int kBoardSize = 29;
 // there can be a stack of bugs up to 7 high
-inline constexpr int kBoardHeight = 8;
+inline constexpr int kBoardHeight = 7;
 inline constexpr int kNumHexagons = kBoardSize*kBoardSize*kBoardHeight;
 
 inline constexpr Player kWhite = 0;
@@ -99,7 +99,7 @@ class Offset {
   Offset() : x(0), y(0), z(0) {}
   Offset(int boardIdx);
   Offset(int8_t x_, int8_t y_, int8_t z_) :
-    x(x_ % kBoardSize), y(y_ % kBoardSize), z(z_ % kBoardSize) {}
+    x(x_ % kBoardSize), y(y_ % kBoardSize), z(z_ % kBoardHeight) {}
 
   int8_t x;
   int8_t y;
@@ -205,13 +205,15 @@ class HiveBoard {
 
   void Clear();
 
-  bool IsLegalMove(HiveMove& m) const;
+  std::vector<HiveMove> LegalMoves() const;
   void PlayMove(HiveMove& m);
   void UndoMove(HiveMove& m);
 
   std::string ToString();
 
   Player to_play;
+
+  // TODO: make these functions and have hive.cc cache them
   Player outcome;
   bool is_terminal;
 
@@ -234,8 +236,6 @@ class HiveBoard {
   void CacheOutcome();
   void CacheIsTerminal();
 
-  void CacheLegalMoves();
-
   std::array<BugCollection, 2> bug_collections_;
 
   std::array<std::unordered_set<Offset>, 2> available_;
@@ -245,10 +245,8 @@ class HiveBoard {
   std::array<Hexagon*, 2> bees_;
   Hexagon* last_moved_;
 
-  std::array<Hexagon, kBoardSize*kBoardSize*(kBoardHeight+1)> board_;
+  std::array<Hexagon, kBoardSize*kBoardSize*kBoardHeight> board_;
   std::array<bool, kBoardSize*kBoardSize> visited_;
-
-  std::vector<HiveMove> legalMoves_;
 };
 
 std::ostream &operator<<(std::ostream &os, const HiveBoard &board);

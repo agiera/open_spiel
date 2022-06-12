@@ -19,6 +19,7 @@
 #include <utility>
 #include <vector>
 
+#include "open_spiel/games/hive/hive_board.h"
 #include "open_spiel/spiel_utils.h"
 #include "open_spiel/utils/tensor_view.h"
 
@@ -52,103 +53,81 @@ REGISTER_SPIEL_GAME(kGameType, Factory);
 
 }  // namespace
 
-CellState PlayerToState(Player player) {
-  switch (player) {
-    case 0:
-      return CellState::kCross;
-    case 1:
-      return CellState::kNought;
-    default:
-      SpielFatalError(absl::StrCat("Invalid player id ", player));
-      return CellState::kEmpty;
-  }
+HiveMove HiveState::ActionToHiveMove(Action move) const {
+  const int hex_idx_mask = (1 << kNumIndexBits) -1;
+  bool pass = (move & 1) != 0;
+  bool place = ((move >> 1) & 1) != 0;
+  return HiveMove{
+    pass,
+    place,
+    (BugType) ((move >> 2) & 7),
+    Offset((move >> 2) & hex_idx_mask),
+    Offset((move >> (2 + kNumIndexBits)) & hex_idx_mask),
+  };
 }
 
-std::string StateToString(CellState state) {
-  switch (state) {
-    case CellState::kEmpty:
-      return ".";
-    case CellState::kNought:
-      return "o";
-    case CellState::kCross:
-      return "x";
-    default:
-      SpielFatalError("Unknown state.");
-  }
-}
-
-bool BoardHasLine(const std::array<CellState, kNumCells>& board,
-                  const Player player) {
-  CellState c = PlayerToState(player);
-  return (board[0] == c && board[1] == c && board[2] == c) ||
-         (board[3] == c && board[4] == c && board[5] == c) ||
-         (board[6] == c && board[7] == c && board[8] == c) ||
-         (board[0] == c && board[3] == c && board[6] == c) ||
-         (board[1] == c && board[4] == c && board[7] == c) ||
-         (board[2] == c && board[5] == c && board[8] == c) ||
-         (board[0] == c && board[4] == c && board[8] == c) ||
-         (board[2] == c && board[4] == c && board[6] == c);
+Action HiveState::HiveMoveToAction(HiveMove move) const {
+  return (move.to.index << kNumIndexBits + 5) | (move.from.index << 5) |
+         (move.bug << 2) | (move.place << 1) | move.pass;
 }
 
 void HiveState::DoApplyAction(Action move) {
-  SPIEL_CHECK_EQ(board_[move], CellState::kEmpty);
-  board_[move] = PlayerToState(CurrentPlayer());
-  if (HasLine(current_player_)) {
-    outcome_ = current_player_;
-  }
-  current_player_ = 1 - current_player_;
-  num_moves_ += 1;
+  HiveMove hive_move = ActionToHiveMove(move);
+  moves_history_.push(hive_move);
+  repetitions_.extract(board_.zobrist_hash);
+  board_.PlayMove(hive_move);
+  cached_legal_actions_ = absl::nullopt;
+}
+
+void HiveState::UndoAction(Player player, Action move) {
+  SPIEL_CHECK_GE(moves_history_.size(), 1);
+  repetitions_.insert(board_.zobrist_hash);
+  HiveMove last_move = moves_history_.top();
+  moves_history_.pop();
+  history_.pop_back();
+  --move_number_;
+  board_.UndoMove(last_move);
+  cached_legal_actions_ = absl::nullopt;
 }
 
 std::vector<Action> HiveState::LegalActions() const {
-  if (IsTerminal()) return {};
-  // Can move in any empty cell.
-  std::vector<Action> moves;
-  for (int cell = 0; cell < kNumCells; ++cell) {
-    if (board_[cell] == CellState::kEmpty) {
-      moves.push_back(cell);
+  if (!cached_legal_actions_.has_value()) {
+    cached_legal_actions_ = {};
+    for (HiveMove m : board_.LegalMoves()) {
+      cached_legal_actions_->push_back(HiveMoveToAction(m));
     }
   }
-  return moves;
+  absl::c_sort(*cached_legal_actions_);
+  return *cached_legal_actions_;
 }
 
 std::string HiveState::ActionToString(Player player,
-                                           Action action_id) const {
-  return absl::StrCat(StateToString(PlayerToState(player)), "(",
-                      action_id / kNumCols, ",", action_id % kNumCols, ")");
+                                      Action action_id) const {
+  HiveMove m = ActionToHiveMove(action_id);
+  if (m.pass) { return "pass"; }
+  // TODO
+  if (m.place) {
+    return "";
+  } else {
+    return "";
+  }
 }
 
-bool HiveState::HasLine(Player player) const {
-  return BoardHasLine(board_, player);
-}
-
-bool HiveState::IsFull() const { return num_moves_ == kNumCells; }
-
-HiveState::HiveState(std::shared_ptr<const Game> game) : State(game) {
-  std::fill(begin(board_), end(board_), CellState::kEmpty);
-}
+HiveState::HiveState(std::shared_ptr<const Game> game) : State(game) {}
 
 std::string HiveState::ToString() const {
-  std::string str;
-  for (int r = 0; r < kNumRows; ++r) {
-    for (int c = 0; c < kNumCols; ++c) {
-      absl::StrAppend(&str, StateToString(BoardAt(r, c)));
-    }
-    if (r < (kNumRows - 1)) {
-      absl::StrAppend(&str, "\n");
-    }
-  }
-  return str;
+  // TODO
+  return "";
 }
 
 bool HiveState::IsTerminal() const {
-  return outcome_ != kInvalidPlayer || IsFull();
+  return board_.is_terminal;
 }
 
 std::vector<double> HiveState::Returns() const {
-  if (HasLine(Player{0})) {
+  if (board_.outcome == kWhite) {
     return {1.0, -1.0};
-  } else if (HasLine(Player{1})) {
+  } else if (board_.outcome == kBlack) {
     return {-1.0, 1.0};
   } else {
     return {0.0, 0.0};
@@ -171,21 +150,6 @@ void HiveState::ObservationTensor(Player player,
                                        absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
-
-  // Treat `values` as a 2-d tensor.
-  TensorView<2> view(values, {kCellStates, kNumCells}, true);
-  for (int cell = 0; cell < kNumCells; ++cell) {
-    view[{static_cast<int>(board_[cell]), cell}] = 1.0;
-  }
-}
-
-void HiveState::UndoAction(Player player, Action move) {
-  board_[move] = CellState::kEmpty;
-  current_player_ = player;
-  outcome_ = kInvalidPlayer;
-  num_moves_ -= 1;
-  history_.pop_back();
-  --move_number_;
 }
 
 std::unique_ptr<State> HiveState::Clone() const {
@@ -195,5 +159,5 @@ std::unique_ptr<State> HiveState::Clone() const {
 HiveGame::HiveGame(const GameParameters& params)
     : Game(kGameType, params) {}
 
-}  // namespace tic_tac_toe
+}  // namespace hive
 }  // namespace open_spiel

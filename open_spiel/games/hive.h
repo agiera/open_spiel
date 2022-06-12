@@ -20,9 +20,11 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <stack>
+#include <math.h>
 
-#include "open_spiel/games/hive/hive_board.h"
 #include "open_spiel/spiel.h"
+#include "open_spiel/games/hive/hive_board.h"
 
 // Simple game of Noughts and Crosses:
 // https://en.wikipedia.org/wiki/Tic-tac-toe
@@ -32,31 +34,16 @@
 namespace open_spiel {
 namespace hive {
 
-using hive::BugType;
-using hive::Color;
-using hive::Bug;
-using hive::Hexagon;
-
-// 1 Bee
-// 2 Beetles
-// 3 Ants
-// 3 Grasshoppers
-// 2 Spiders
-// 1 Ladybugs
-// 1 Mosquito
-// 1 Pillbug
-
 // Constants.
 inline constexpr int kNumPlayers = 2;
 
-// The maximum length the tiles can span is 28, so the hive can never wrap
-// around and complete the connection
-inline constexpr int kBoardSize = 29;
-// there can be a stack of bugs up to 7 high
-inline constexpr int kBoardHeight = 7;
-inline constexpr int kNumHexagons = kBoardSize*kBoardSize*kBoardHeight;
-inline constexpr int kNumBugTypes = 8;
-inline constexpr int kNumCellStates = 2*kNumBugTypes + 1;
+const int kNumCellStates = 2*2*kNumBugTypes + 1;
+const int kNumberStates = 3 * (1 + kNumBugs * 2) * kBoardSize * kBoardSize * kBoardHeight;
+// TODO: lower number of actions by implementing better packing in encoding and decoding
+//       Does this actually help?
+//const int kNumActions = 1 + kNumBugs * kNumHexagons + kNumHexagons * kNumHexagons;
+const int kNumActions = 2 * 2 * kNumBugs * kNumHexagons * kNumHexagons;
+const int kNumIndexBits = ceil(log2(kNumHexagons));
 
 // State of an in-play game.
 class HiveState : public State {
@@ -67,42 +54,46 @@ class HiveState : public State {
   HiveState& operator=(const HiveState&) = default;
 
   Player CurrentPlayer() const override {
-    return IsTerminal() ? kTerminalPlayerId : current_player_;
+    return IsTerminal() ? kTerminalPlayerId : board_.to_play;
   }
+
+  HiveMove ActionToHiveMove(Action move) const;
+  Action HiveMoveToAction(HiveMove move) const;
+  void UndoAction(Player player, Action move) override;
+
   std::string ActionToString(Player player, Action action_id) const override;
   std::string ToString() const override;
+
+  Player outcome() const { return board_.outcome; }
   bool IsTerminal() const override;
   std::vector<double> Returns() const override;
+
   std::string InformationStateString(Player player) const override;
   std::string ObservationString(Player player) const override;
   void ObservationTensor(Player player,
                          absl::Span<float> values) const override;
-  std::unique_ptr<State> Clone() const override;
-  void UndoAction(Player player, Action move) override;
-  std::vector<Action> LegalActions() const override;
-  Player outcome() const { return outcome_; }
 
-  // Only used by Ultimate Tic-Tac-Toe.
-  void SetCurrentPlayer(Player player) { current_player_ = player; }
+  std::unique_ptr<State> Clone() const override;
+  std::vector<Action> LegalActions() const override;
 
  protected:
   void DoApplyAction(Action move) override;
 
  private:
-  Player current_player_ = 0;         // Player zero goes first
-  Player outcome_ = kInvalidPlayer;
   int num_moves_ = 0;
+  std::stack<HiveMove> moves_history_;
+  std::multiset<uint64_t> repetitions_;
+
+  mutable absl::optional<std::vector<Action>> cached_legal_actions_;
+
+  HiveBoard board_;
 };
 
 // Game object.
 class HiveGame : public Game {
  public:
   explicit HiveGame(const GameParameters& params);
-  // An action can consist of moving one piece from one point to another or
-  // placing one of the eight pieces on some point.
-  int NumDistinctActions() const override {
-    return kNumHexagons + kBoardHeight;
-  }
+  int NumDistinctActions() const override { return kNumActions; }
   std::unique_ptr<State> NewInitialState() const override {
     return std::unique_ptr<State>(new HiveState(shared_from_this()));
   }
@@ -111,8 +102,14 @@ class HiveGame : public Game {
   double UtilitySum() const override { return 0; }
   double MaxUtility() const override { return 1; }
   std::vector<int> ObservationTensorShape() const override {
-    return {kNumCellStates + 1 + 1, kBoardSize, kBoardSize};
+    static std::vector<int> shape{
+      13 /* piece types * colours + empty */ + 1 /* repetition count */ +
+          1 /* last moved piece */ + 1 /* side to move */,
+      kBoardSize, kBoardSize, kBoardHeight};
+    return shape;
   }
+  // TODO: figure out resonable upper bound
+  int MaxGameLength() const override { return 10000000000; }
 };
 
 }  // namespace hive
