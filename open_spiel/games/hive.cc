@@ -20,8 +20,11 @@
 #include <vector>
 
 #include "open_spiel/games/hive/hive_board.h"
+#include "open_spiel/spiel.h"
 #include "open_spiel/spiel_utils.h"
 #include "open_spiel/utils/tensor_view.h"
+#include "open_spiel/abseil-cpp/absl/algorithm/container.h"
+#include "open_spiel/abseil-cpp/absl/types/optional.h"
 
 namespace open_spiel {
 namespace hive {
@@ -51,76 +54,234 @@ std::shared_ptr<const Game> Factory(const GameParameters& params) {
 
 REGISTER_SPIEL_GAME(kGameType, Factory);
 
-}  // namespace
-
-HiveMove HiveState::ActionToHiveMove(Action move) const {
-  const int hex_idx_mask = (1 << kNumIndexBits) -1;
-  bool pass = (move & 1) != 0;
-  bool place = ((move >> 1) & 1) != 0;
-  return HiveMove{
-    pass,
-    place,
-    (BugType) ((move >> 2) & 7),
-    Offset((move >> 2) & hex_idx_mask),
-    Offset((move >> (2 + kNumIndexBits)) & hex_idx_mask),
-  };
+// Adds a uniform scalar plane scaled with min and max.
+template <typename T>
+void AddScalarPlane(T val, T min, T max,
+                    absl::Span<float>::iterator& value_it) {
+  double normalized_val = static_cast<double>(val - min) / (max - min);
+  for (int i = 0; i < kBoardSize*kBoardSize; ++i) *value_it++ = normalized_val;
 }
 
-Action HiveState::HiveMoveToAction(HiveMove move) const {
-  return (move.to.index << kNumIndexBits + 5) | (move.from.index << 5) |
-         (move.bug << 2) | (move.place << 1) | move.pass;
+}  // namespace
+
+std::string HiveActionToString(HiveAction action) {
+  if (action.pass) { return "pass"; }
+
+  std::string res = BugToString(action.from);
+  if (action.first) { return res; }
+  if (action.jump) {
+    res += " " + BugToString(action.on);
+    return res;
+  }
+
+  res += " ";
+  if (action.neighbour > 2) {
+    res += kNeighbourSymbols[action.neighbour];
+  }
+  res += BugToString(action.around);
+  if (action.neighbour < 3) {
+    res += kNeighbourSymbols[action.neighbour];
+  }
+
+  return res;
+}
+
+HiveMove HiveState::HiveActionToHiveMove(HiveAction action) const {
+  std::cout << "HiveActionToHiveMove\n";
+  std::cout << HiveActionToString(action) + "\n";
+  if (action.pass) { return HiveMove(); }
+  Hexagon* from = board_.GetHexagon(action.from);
+  Hexagon* around = board_.GetHexagon(action.around);
+  Hexagon* to = around;
+  if (to != NULL) {
+    std::cout << "to: " + HexagonToString(to) + "\n";
+    to = to->neighbours[action.neighbour]->Top();
+    if (to->bug != kEmptyBug) { to = to->above; }
+  }
+  // Case that player is placing a bug
+  if (from == NULL) {
+    if (board_.NumBugs() == 0) {
+      to = board_.starting_hexagon;
+    } else if (board_.NumBugs() == 1) {
+      to = board_.starting_hexagon->above;
+    }
+    return HiveMove(action.from.type, to);
+  }
+  std::cout << "end HiveActionToHiveMove\n";
+  return HiveMove(board_.GetHexagon(action.from), to);
+}
+
+HiveAction HiveState::HiveMoveToHiveAction(HiveMove move) const {
+  if (move.pass) { return HiveAction{true}; }
+
+  Bug from;
+  if (move.place) {
+    int8_t order = board_.NumBugs(board_.to_play, move.bug_type);
+    from = Bug{board_.to_play, move.bug_type, order};
+  } else {
+    from = move.from->bug;
+  }
+
+  Bug around = Bug{kWhite, kBee, 0};
+  int8_t neighbour = 0;
+  for (int8_t i=0; i < 6; i++) {
+    if (move.to->neighbours[i]->bug != kEmptyBug) {
+      around = move.to->neighbours[i]->bug;
+      neighbour = i;
+    }
+  }
+
+  // Add optional attributes for string representation
+  bool first = board_.NumBugs() < 2;
+  bool jump = move.to->Top()->bug != kEmptyBug;
+  Bug on = move.to->Top()->bug;
+  if (!jump) {
+    on = Bug{kWhite, kBee, 0};
+  }
+
+  return HiveAction{false, from, around, neighbour, first, jump, on};
+}
+
+HiveAction HiveState::ActionToHiveAction(Action action) const {
+  int min_bits = action >> 8;
+  if (min_bits == 6*6*6) {
+    return HiveAction{true};
+  }
+  int8_t from_order = min_bits / 18;
+  int8_t around_order = (min_bits % 18) / 6;
+  int8_t neighbour = min_bits % 6;
+
+  Player from_player = (action >> 0) & 0b1;
+  BugType from_type = (BugType) ((action >> 1) & 0b111);
+  Bug from = Bug{from_player, from_type, from_order};
+
+  Player around_player = (action >> 4) & 0b1;
+  BugType around_type = (BugType) ((action >> 5) & 0b111);
+  Bug around = Bug{around_player, around_type, around_order};
+
+  // Add optional attributes for string representation
+  bool first = board_.NumBugs() < 2;
+  Hexagon* to = board_.GetHexagon(around);
+  bool jump = false;
+  Bug on = Bug{kWhite, kBee, 0};
+  if (to != NULL) {
+    to = to->neighbours[neighbour]->Top();
+    jump = to->bug != kEmptyBug;
+    on = to->bug;
+    if (!jump) {
+      on = Bug{kWhite, kBee, 0};
+    }
+  }
+
+  return HiveAction{false, from, around, neighbour, first, jump, on};
+}
+
+Action HiveState::HiveActionToAction(HiveAction action) const {
+  if (action.pass) { return kNumActions; }
+
+  // A way to encode three numbers ranging from 0 to 5
+  // This is put in front so the number of actions is minimized
+  SPIEL_CHECK_GE((int) action.from.order, 0);
+  SPIEL_CHECK_LT((int) action.from.order, 6);
+  SPIEL_CHECK_GE((int) action.around.order, 0);
+  SPIEL_CHECK_LT((int) action.around.order, 6);
+  SPIEL_CHECK_GE((int) action.neighbour, 0);
+  SPIEL_CHECK_LT((int) action.neighbour, 6);
+  Action res = action.from.order*18 + action.around.order*6 + action.neighbour;
+  //std::cout << std::to_string(res);
+  //std::cout << ", ";
+  res <<= 8;
+  //std::cout << std::to_string(res);
+  //std::cout << ", ";
+
+  res |= action.from.player << 0;
+  //std::cout << std::to_string(res);
+  //std::cout << ", ";
+  res |= action.from.type << 1;
+  //std::cout << std::to_string(res);
+  //std::cout << ", ";
+
+  res |= action.around.player << 4;
+  //std::cout << std::to_string(res);
+  //std::cout << ", ";
+  res |= action.around.type << 5;
+  //std::cout << std::to_string(res);
+  //std::cout << ", ";
+  //std::cout << "\n";
+
+  return res;
 }
 
 void HiveState::DoApplyAction(Action move) {
-  HiveMove hive_move = ActionToHiveMove(move);
-  moves_history_.push(hive_move);
+  HiveAction hive_action = ActionToHiveAction(move);
+  actions_history_.push_back(hive_action);
+  HiveMove hive_move = HiveActionToHiveMove(hive_action);
+  moves_history_.push_back(hive_move);
   repetitions_.extract(board_.zobrist_hash);
   board_.PlayMove(hive_move);
-  cached_legal_actions_ = absl::nullopt;
+  cached_legal_actions_.clear();
 }
 
 void HiveState::UndoAction(Player player, Action move) {
   SPIEL_CHECK_GE(moves_history_.size(), 1);
   repetitions_.insert(board_.zobrist_hash);
-  HiveMove last_move = moves_history_.top();
-  moves_history_.pop();
+  actions_history_.pop_back();
+  HiveMove last_move = moves_history_.back();
+  moves_history_.pop_back();
   history_.pop_back();
   --move_number_;
   board_.UndoMove(last_move);
-  cached_legal_actions_ = absl::nullopt;
+  cached_legal_actions_.clear();
 }
 
 std::vector<Action> HiveState::LegalActions() const {
-  if (!cached_legal_actions_.has_value()) {
-    cached_legal_actions_ = {};
-    for (HiveMove m : board_.LegalMoves()) {
-      cached_legal_actions_->push_back(HiveMoveToAction(m));
+  std::cout << "\ncalling legal actions\n";
+  if (cached_legal_actions_.empty()) {
+    for (HiveMove hive_move : board_.LegalMoves()) {
+      HiveAction hive_action = HiveMoveToHiveAction(hive_move);
+      Action action = HiveActionToAction(hive_action);
+      cached_legal_actions_.push_back(action);
+      std::string action_str = HiveActionToString(hive_action);
+      std::cout << action_str;
+      std::cout << ", ";
+      std::cout << std::to_string(action);
+      std::cout << "; ";
     }
   }
-  absl::c_sort(*cached_legal_actions_);
-  return *cached_legal_actions_;
+  std::cout << "\n";
+  absl::c_sort(cached_legal_actions_);
+  std::cout << "finished legal actions\n";
+  return cached_legal_actions_;
 }
 
 std::string HiveState::ActionToString(Player player,
                                       Action action_id) const {
-  HiveMove m = ActionToHiveMove(action_id);
-  if (m.pass) { return "pass"; }
-  // TODO
-  if (m.place) {
-    return "";
-  } else {
-    return "";
-  }
+  HiveAction m = ActionToHiveAction(action_id);
+  return HiveActionToString(m);
 }
 
 HiveState::HiveState(std::shared_ptr<const Game> game) : State(game) {}
 
 std::string HiveState::ToString() const {
-  // TODO
-  return "";
+  std::string res = "Base+MLP;";
+  if (actions_history_.empty()) { return res + "NotStarted;White[1]"; }
+
+  const std::array<std::string, 2> colors = { "White", "Black" };
+  res += "InProgress;";
+  res += colors[board_.to_play];
+  res += "[" + std::to_string(actions_history_.size()/2 + 1) + "];";
+
+  for (HiveAction action : actions_history_) {
+    res += HiveActionToString(action) + ";";
+  }
+  res.pop_back();
+  return res;
 }
 
 bool HiveState::IsTerminal() const {
+  if (repetitions_.count(board_.zobrist_hash) == kNumRepetitionsToDraw) {
+    return true;
+  }
   return board_.is_terminal;
 }
 
@@ -147,9 +308,21 @@ std::string HiveState::ObservationString(Player player) const {
 }
 
 void HiveState::ObservationTensor(Player player,
-                                       absl::Span<float> values) const {
+                                  absl::Span<float> values) const {
   SPIEL_CHECK_GE(player, 0);
   SPIEL_CHECK_LT(player, num_players_);
+
+  auto value_it = values.begin();
+
+  std::copy(board_.observation.begin(), board_.observation.end(), value_it);
+
+  // Num repetitions for the current board.
+  AddScalarPlane((int) repetitions_.count(board_.zobrist_hash), 1, 3, value_it);
+
+  // TODO: Add last moved hex
+  // AddBinaryPlane(board_.last_moved_, value_it);
+
+  //SPIEL_CHECK_EQ(value_it, values.end());
 }
 
 std::unique_ptr<State> HiveState::Clone() const {

@@ -92,6 +92,8 @@ set(GAME_SOURCES
   hex.h
   hive.cc
   hive.h
+  hive/hive_board.h
+  hive/hive_board.cc
   kriegspiel.cc
   kriegspiel.h
   kuhn_poker.cc

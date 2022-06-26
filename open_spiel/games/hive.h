@@ -25,9 +25,11 @@
 
 #include "open_spiel/spiel.h"
 #include "open_spiel/games/hive/hive_board.h"
+#include "open_spiel/abseil-cpp/absl/algorithm/container.h"
+#include "open_spiel/abseil-cpp/absl/types/optional.h"
 
-// Simple game of Noughts and Crosses:
-// https://en.wikipedia.org/wiki/Tic-tac-toe
+// Simple game of bugs and hexagons
+// https://en.wikipedia.org/wiki/Hive_(game)
 //
 // Parameters: none
 
@@ -37,13 +39,38 @@ namespace hive {
 // Constants.
 inline constexpr int kNumPlayers = 2;
 
-const int kNumCellStates = 2*2*kNumBugTypes + 1;
-const int kNumberStates = 3 * (1 + kNumBugs * 2) * kBoardSize * kBoardSize * kBoardHeight;
-// TODO: lower number of actions by implementing better packing in encoding and decoding
-//       Does this actually help?
-//const int kNumActions = 1 + kNumBugs * kNumHexagons + kNumHexagons * kNumHexagons;
-const int kNumActions = 2 * 2 * kNumBugs * kNumHexagons * kNumHexagons;
-const int kNumIndexBits = ceil(log2(kNumHexagons));
+static const int kNumCellStates = 2*2*kNumBugTypes + 1;
+static const int kNumberStates = 3 * (1 + kNumBugs * 2) * kBoardSize * kBoardSize * kBoardHeight;
+// An action can be a pass or a mapping from one bug to another bug's neighbouring space
+// 2^9 * 3^3 + 1
+// Totalling 13825 actions
+static const int kNumActions = 1 + kNumBugs * kNumBugs * 6;
+// TODO: lower number of actions
+// E.G. How do you enumerate the at most 27 + 26*2 + 4 places a bug can go
+//      Doing this would yield kNumBugs*(27 + 26*2 + 4) = 3984 actions
+//      Maybe just order the hexagons via dfs
+
+inline constexpr int kNumRepetitionsToDraw = 3;
+
+static const std::array<std::string, 6> kNeighbourSymbols = {
+  "/", "-", "\\", "/", "-", "\\"
+};
+
+struct HiveAction {
+  bool pass;
+  Bug from;
+  Bug around;
+  int8_t neighbour;
+
+  // optional parameters
+  // Neccessary for printing action
+  bool first;
+  bool jump;
+  Bug on;
+};
+
+// Converts HiveAction to string
+std::string HiveActionToString(HiveAction action);
 
 // State of an in-play game.
 class HiveState : public State {
@@ -57,8 +84,12 @@ class HiveState : public State {
     return IsTerminal() ? kTerminalPlayerId : board_.to_play;
   }
 
-  HiveMove ActionToHiveMove(Action move) const;
-  Action HiveMoveToAction(HiveMove move) const;
+  HiveMove HiveActionToHiveMove(HiveAction action) const;
+  HiveAction HiveMoveToHiveAction(HiveMove move) const;
+
+  HiveAction ActionToHiveAction(Action action) const;
+  Action HiveActionToAction(HiveAction action) const;
+
   void UndoAction(Player player, Action move) override;
 
   std::string ActionToString(Player player, Action action_id) const override;
@@ -81,10 +112,11 @@ class HiveState : public State {
 
  private:
   int num_moves_ = 0;
-  std::stack<HiveMove> moves_history_;
+  std::vector<HiveMove> moves_history_;
+  std::vector<HiveAction> actions_history_;
   std::multiset<uint64_t> repetitions_;
 
-  mutable absl::optional<std::vector<Action>> cached_legal_actions_;
+  mutable std::vector<Action> cached_legal_actions_;
 
   HiveBoard board_;
 };
@@ -109,7 +141,7 @@ class HiveGame : public Game {
     return shape;
   }
   // TODO: figure out resonable upper bound
-  int MaxGameLength() const override { return 10000000000; }
+  int MaxGameLength() const override { return 1000; }
 };
 
 }  // namespace hive
