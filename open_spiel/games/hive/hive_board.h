@@ -60,6 +60,8 @@ inline constexpr std::array<int8_t, 8> bug_series = { 0, 1, 3, 6, 9, 11, 12, 13 
 
 static const chess_common::ZobristTable<uint64_t, 2, kNumBugs, kBoardSize, kBoardSize, kBoardHeight> zobristTable(/*seed=*/2346);
 
+static const long mod(long a, long b) { return (a%b+b)%b; }
+
 enum BugType : int8_t {
   kBee = 0,
   kBeetle = 1,
@@ -104,15 +106,15 @@ absl::optional<Bug> PieceTypeFromString(std::string s);
 std::string BugToString(Bug b);
 
 inline int8_t addBoardCoords(int8_t a, int8_t b) {
-  return (a + b) % kBoardSize;
+  return mod(a + b, kBoardSize);
 }
 
 class Offset {
  public:
   Offset() : x(0), y(0), z(0) {}
   Offset(int boardIdx);
-  Offset(int8_t x_, int8_t y_, int8_t z_) :
-    x(x_ % kBoardSize), y(y_ % kBoardSize), z(z_ % kBoardHeight) {}
+  Offset(int x_, int y_, int z_) :
+    x(mod(x_, kBoardSize)), y(mod(y_, kBoardSize)), z(mod(z_, kBoardHeight)) {}
 
   int8_t x;
   int8_t y;
@@ -217,13 +219,13 @@ class BugCollection {
 
   bool HasBug(BugType t) const;
   bool UseBug(Hexagon* h, BugType t);
-  Hexagon* GetBug(Bug b) const;
+  absl::optional<Offset> GetBug(Bug b) const;
   int8_t NumBugs(BugType bt) const;
 
  private:
   Player player_;
   std::array<int8_t, 8> bug_counts_;
-  std::array<std::vector<Hexagon*>, 8> hexagons_;
+  std::array<std::vector<Offset>, 8> hexagons_;
 };
 
 // Simple Hive board.
@@ -286,6 +288,7 @@ inline std::ostream& operator<<(std::ostream& stream, const Bug& pt) {
 }
 
 std::string BugToString(Bug b);
+std::string OffsetToString(Offset o);
 std::string HexagonToString(Hexagon* h);
 
 }  // namespace go

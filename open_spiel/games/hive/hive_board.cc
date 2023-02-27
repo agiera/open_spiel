@@ -61,11 +61,11 @@ std::string Bug::ToString() const {
 const std::vector<int8_t> neighbour_inverse = {3, 4, 5, 0, 1, 2};
 
 Offset::Offset(int boardIdx) {
-  boardIdx = boardIdx % (kBoardSize*kBoardSize*kBoardHeight);
+  boardIdx = mod(boardIdx, kBoardSize*kBoardSize*kBoardHeight);
   z = boardIdx / (kBoardSize*kBoardSize);
-  boardIdx = boardIdx % (kBoardSize*kBoardSize);
+  boardIdx = mod(boardIdx, kBoardSize*kBoardSize);
   y = boardIdx / kBoardSize;
-  x = boardIdx % kBoardSize;
+  x = mod(boardIdx, kBoardSize);
   index = x + kBoardSize*y + kBoardSize*kBoardSize*z;
 }
 
@@ -82,7 +82,7 @@ const std::array<Offset, 6> oddRowNeighbors = {
 std::array<Offset, 6> Offset::neighbours() const {
   auto f = [this](Offset p) -> Offset { return p + *this; };
   std::array<Offset, 6> neighbours;
-  if (y % 2 == 0) {
+  if (mod(y, 2) == 0) {
     neighbours = evenRowNeighbors;
   } else {
     neighbours = oddRowNeighbors;
@@ -104,7 +104,7 @@ bool Offset::operator!=(const Offset& other) const {
 }
 
 Offset neighbourOffset(Offset o, int i) {
-  if (o.y % 2 == 0) {
+  if (mod(o.y, 2) == 0) {
     return o + evenRowNeighbors[i];
   }
   return o + oddRowNeighbors[i];
@@ -118,12 +118,16 @@ std::string BugToString(Bug b) {
   return b.ToString();
 }
 
+std::string OffsetToString(Offset o) {
+  return absl::StrCat("(", o.x, ", ", o.y, ", ", o.z, ")");
+}
+
 std::ostream& operator<<(std::ostream& os, Hexagon* h) {
   return os << HexagonToString(h);
 }
 
 std::string HexagonToString(Hexagon* h) {
-  return absl::StrCat("(", h->loc.x + 1, ", ", h->loc.y + 1, ", ", h->loc.z + 1, ")");
+  return OffsetToString(h->loc);
 }
 
 Hexagon::Hexagon() {
@@ -156,10 +160,10 @@ Hexagon* Hexagon::Top() const {
 int Hexagon::FindClockwiseMove(int prev_idx) const {
   int j;
   for (int8_t i=0; i < 6; i++) {
-    j = (prev_idx + 1 - i) % 6;
+    j = mod(prev_idx + 1 - i, 6);
     if (neighbours[j]->bug != kEmptyBug &&
-        neighbours[(j+1) % 6]->bug != kEmptyBug &&
-        neighbours[(j-1) % 6]->bug != kEmptyBug) {
+        neighbours[mod(j+1, 6)]->bug != kEmptyBug &&
+        neighbours[mod(j-1, 6)]->bug != kEmptyBug) {
       return i;
     }
   }
@@ -169,10 +173,10 @@ int Hexagon::FindClockwiseMove(int prev_idx) const {
 int Hexagon::FindCounterClockwiseMove(int prev_idx) const {
   int j;
   for (int8_t i=0; i < 6; i++) {
-    j = (prev_idx - 1 + i) % 6;
+    j = mod(prev_idx - 1 + i, 6);
     if (neighbours[j]->bug != kEmptyBug &&
-        neighbours[(j-1) % 6]->bug != kEmptyBug &&
-        neighbours[(j+1) % 6]->bug != kEmptyBug) {
+        neighbours[mod(j-1, 6)]->bug != kEmptyBug &&
+        neighbours[mod(j+1, 6)]->bug != kEmptyBug) {
       return i;
     }
   }
@@ -347,12 +351,12 @@ void Hexagon::GeneratePillbugMoves(std::vector<HiveMove> &moves) const {
   }
 }
 
-BugCollection::BugCollection(Player p) :
-  player_(p), bug_counts_({ 0, 0, 0, 0, 0, 0, 0, 0 }) {}
+BugCollection::BugCollection(Player p)
+  : player_(p), bug_counts_({ 0, 0, 0, 0, 0, 0, 0, 0 }) {}
 
 void BugCollection::Reset() {
   bug_counts_ = { 0, 0, 0, 0, 0, 0, 0, 0 };
-  for (std::vector<Hexagon*> h_vec : hexagons_) {
+  for (std::vector<Offset> h_vec : hexagons_) {
     h_vec.empty();
   }
 }
@@ -369,7 +373,7 @@ bool BugCollection::HasBug(BugType t) const {
 
 bool BugCollection::UseBug(Hexagon* h, BugType t) {
   if (HasBug(t)) {
-    hexagons_[(int) t].push_back(h);
+    hexagons_[(int8_t) t].push_back(h->loc);
     Bug bug = Bug{player_, t, bug_counts_[t]};
     h->bug = bug;
     bug_counts_[t]++;
@@ -378,9 +382,9 @@ bool BugCollection::UseBug(Hexagon* h, BugType t) {
   return false;
 }
 
-Hexagon* BugCollection::GetBug(Bug b) const {
+absl::optional<Offset> BugCollection::GetBug(Bug b) const {
   if (b.order >= bug_counts_[b.type]) {
-    return NULL;
+    return absl::nullopt;
   }
   return hexagons_[b.type][b.order];
 }
@@ -399,6 +403,7 @@ HiveBoard::HiveBoard()
 void HiveBoard::Clear() {  
   hexagons_.empty();
   bees_ = {NULL, NULL};
+  to_play = kWhite;
   outcome = kInvalidPlayer;
   is_terminal = false;
 
@@ -446,7 +451,12 @@ Hexagon* HiveBoard::GetHexagon(int x, int y, int z) {
 }
 
 Hexagon* HiveBoard::GetHexagon(Bug b) const {
-  return bug_collections_[b.player].GetBug(b);
+  absl::optional<Offset> o = bug_collections_[b.player].GetBug(b);
+  if (o.has_value()) {
+    return board_[o.value().index].above->below;
+  } else {
+    return NULL;
+  }
 }
 
 std::size_t HiveBoard::NumBugs() const {
@@ -583,17 +593,12 @@ std::vector<HiveMove> HiveBoard::LegalMoves() const {
   }
 
   for (Hexagon* h : available_[to_play]) {
-    std::cout << std::to_string(h->loc.x);
-    std::cout << ", ";
-    std::cout << std::to_string(h->loc.y);
-    std::cout << "; ";
     for (int8_t bug=0; bug < kNumBugTypes; bug++) {
       if (bug_collections_[to_play].HasBug((BugType) bug)) {
         legal_moves.push_back(HiveMove((BugType) bug, h));
       }
     }
   }
-  std::cout << "\n";
 
   if (legal_moves.size() == 0) {
     legal_moves.push_back(HiveMove());
@@ -633,7 +638,6 @@ void HiveBoard::PlayMove(HiveMove &m) {
   if (m.place) {
     PlaceBug(m.to, Bug{to_play, m.bug_type, 0});
   } else {
-    // TODO: Remove bug from board and set to h
     Bug b = RemoveBug(m.from);
     if (b == kEmptyBug) {
       return;
