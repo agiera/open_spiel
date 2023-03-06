@@ -84,12 +84,6 @@ class HiveState : public State {
     return IsTerminal() ? kTerminalPlayerId : board_.to_play;
   }
 
-  HiveMove HiveActionToHiveMove(HiveAction action) const;
-  HiveAction HiveMoveToHiveAction(HiveMove move) const;
-
-  HiveAction ActionToHiveAction(Action action) const;
-  Action HiveActionToAction(HiveAction action) const;
-
   void UndoAction(Player player, Action move) override;
 
   std::string ActionToString(Player player, Action action_id) const override;
@@ -111,6 +105,12 @@ class HiveState : public State {
   void DoApplyAction(Action move) override;
 
  private:
+  HiveMove HiveActionToHiveMove(HiveAction action) const;
+  HiveAction HiveMoveToHiveAction(HiveMove move) const;
+
+  HiveAction ActionToHiveAction(Action action) const;
+  Action HiveActionToAction(HiveAction action) const;
+
   int num_moves_ = 0;
   std::vector<HiveMove> moves_history_;
   std::vector<HiveAction> actions_history_;
