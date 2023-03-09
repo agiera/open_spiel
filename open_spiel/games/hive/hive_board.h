@@ -16,6 +16,7 @@
 #define OPEN_SPIEL_GAMES_HIVE_HIVE_BOARD_H_
 
 #include <array>
+#include <stack>
 #include <cstdint>
 #include <cmath>
 #include <ostream>
@@ -78,8 +79,8 @@ class HiveBoard {
 
  private:
   // For generating legal moves
-  int FindClockwiseMove(Hexagon h, int prev_idx) const;
-  int FindCounterClockwiseMove(Hexagon h, int prev_idx) const;
+  int FindClockwiseMove(Hexagon h, int prev_idx, Bug original) const;
+  int FindCounterClockwiseMove(Hexagon h, int prev_idx, Bug original) const;
   size_t WalkThree(Hexagon h, int i, bool clockwise) const;
   std::vector<Hexagon> FindJumpMoves(Hexagon h) const;
 
@@ -92,6 +93,7 @@ class HiveBoard {
   void GenerateMosquitoMoves(Hexagon h, std::vector<HiveMove> &moves) const;
   void GeneratePillbugMoves(Hexagon h, std::vector<HiveMove> &moves) const;
 
+  bool BugCanMove(Hexagon h) const;
   Player HexagonOwner(Hexagon h) const;
   void CacheHexagonOwner(Hexagon h);
   void CacheHexagonArea(Hexagon h);
@@ -99,8 +101,9 @@ class HiveBoard {
   void CacheUnpinnedHexagons();
 
   // For applying or undoing moves
-  Bug RemoveBug(Hexagon* h);
   void PlaceBug(Hexagon* h, Bug b);
+  Bug MoveBug(Hexagon* from, Hexagon* to);
+  Bug RemoveBug(Hexagon* h);
 
   // For calculating outcome
   void CacheOutcome();
@@ -113,7 +116,7 @@ class HiveBoard {
 
   std::unordered_set<size_t> hexagons_;
   std::array<size_t, 2> bees_;
-  size_t last_moved_;
+  std::stack<size_t> last_moved_;
 
   std::array<Hexagon, kBoardSize*kBoardSize*kBoardHeight> board_;
 };

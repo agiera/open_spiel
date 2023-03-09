@@ -107,7 +107,7 @@ class Offset {
   int8_t y;
   int8_t z;
 
-  int index = x + kBoardSize*y + kBoardSize*kBoardSize*z;
+  size_t index = x + kBoardSize*y + kBoardSize*kBoardSize*z;
   std::array<Offset, 6> neighbours() const;
 
   Offset operator+(const Offset& other) const;
@@ -162,7 +162,6 @@ class Hexagon {
   size_t above;
   size_t below;
   std::array<size_t, 6> neighbours;
-  bool last_moved;
 
   Hexagon* parent;
   bool visited;
@@ -179,12 +178,13 @@ class BugCollection {
 
   void Reset();
 
-  void ReturnBug(Hexagon* h);
-
   bool HasBug(BugType t) const;
-  bool UseBug(Hexagon* h, BugType t);
   absl::optional<Offset> GetBug(Bug b) const;
   int8_t NumBugs(BugType bt) const;
+
+  void UseBug(Hexagon* h, BugType t);
+  void MoveBug(Hexagon* from, Hexagon* to);
+  void ReturnBug(Hexagon* h);
 
  private:
   Player player_;

@@ -23,12 +23,14 @@ absl::optional<BugType> BugTypeFromChar(char c) {
 }
 
 std::string Bug::ToString() const {
-  SPIEL_CHECK_GE(player, 0);
-  SPIEL_CHECK_LE(player, 1);
-  SPIEL_CHECK_GE(type, 0);
-  SPIEL_CHECK_LE(type, 7);
-  SPIEL_CHECK_GE(order, 0);
-  SPIEL_CHECK_LE(order, 2);
+  SPIEL_DCHECK_GE(player, 0);
+  SPIEL_DCHECK_LE(player, 1);
+  SPIEL_DCHECK_GE(type, 0);
+  SPIEL_DCHECK_LE(type, 7);
+  SPIEL_DCHECK_GE(order, -1);
+  SPIEL_DCHECK_LE(order, 2);
+
+  if (order == -1) { return "kEmptyBug"; }
 
   std::string res;
   res += kPlayerChars[player];
@@ -123,9 +125,9 @@ Hexagon::Hexagon() {
   loc.z = 0;
   bug = kEmptyBug;
   visited = false;
-  above = NULL;
-  below = NULL;
-  neighbours.fill(NULL);
+  above = -1;
+  below = -1;
+  neighbours.fill(-1);
 }
 
 BugCollection::BugCollection(Player p)
@@ -134,33 +136,41 @@ BugCollection::BugCollection(Player p)
 void BugCollection::Reset() {
   bug_counts_ = { 0, 0, 0, 0, 0, 0, 0, 0 };
   for (std::vector<size_t> h_vec : hexagons_) {
-    h_vec.empty();
+    h_vec.clear();
   }
-}
-
-void BugCollection::ReturnBug(Hexagon* h) {
-  bug_counts_[h->bug.type]--;
-  hexagons_[h->bug.type].pop_back();
-  h->bug = kEmptyBug;
 }
 
 bool BugCollection::HasBug(BugType t) const {
   return !(bug_counts_[t] == bug_counts[t]);
 }
 
-bool BugCollection::UseBug(Hexagon* h, BugType t) {
-  if (HasBug(t)) {
-    hexagons_[(int8_t) t].push_back(h->loc.index);
-    Bug bug = Bug{player_, t, bug_counts_[t]};
-    h->bug = bug;
-    bug_counts_[t]++;
-    return true;
-  }
-  return false;
+void BugCollection::UseBug(Hexagon* h, BugType t) {
+  SPIEL_DCHECK_EQ(h->bug.order, -1);
+  SPIEL_DCHECK_NE(bug_counts_[t], bug_counts[t]);
+  hexagons_[t].push_back(h->loc.index);
+  Bug bug = Bug{player_, t, bug_counts_[t]};
+  h->bug = bug;
+  bug_counts_[t]++;
+}
+
+void BugCollection::MoveBug(Hexagon* from, Hexagon* to) {
+  SPIEL_DCHECK_NE(from->bug.order, -1);
+  SPIEL_DCHECK_EQ(to->bug.order, -1);
+  to->bug = from->bug;
+  from->bug = kEmptyBug;
+  hexagons_[to->bug.type][to->bug.order] = to->loc.index;
+}
+
+void BugCollection::ReturnBug(Hexagon* h) {
+  SPIEL_DCHECK_NE(h->bug.order, -1);
+  bug_counts_[h->bug.type]--;
+  hexagons_[h->bug.type].pop_back();
+  h->bug = kEmptyBug;
 }
 
 absl::optional<Offset> BugCollection::GetBug(Bug b) const {
   if (b.order >= bug_counts_[b.type]) {
+    std::cout << "no bug found in collection\n";
     return absl::nullopt;
   }
   return hexagons_[b.type][b.order];
