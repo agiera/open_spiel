@@ -106,7 +106,7 @@ HiveMove HiveState::HiveActionToHiveMove(HiveAction action) const {
     if (board_.NumBugs() == 0) {
       return HiveMove(action.from.type, starting_hexagon);
     } else if (board_.NumBugs() == 1) {
-      return HiveMove(action.from.type, starting_hexagon + 1u);
+      return HiveMove(action.from.type, starting_hexagon + 1);
     }
     return HiveMove(action.from.type, to.loc.index);
   }

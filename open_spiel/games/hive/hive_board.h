@@ -32,7 +32,7 @@
 namespace open_spiel {
 namespace hive {
 
-static const chess_common::ZobristTable<uint64_t, 2, kNumBugs, kBoardSize, kBoardSize, kBoardHeight> zobristTable(/*seed=*/2346);
+static const chess_common::ZobristTable<int64_t, 2, kNumBugs, kBoardSize, kBoardSize, kBoardHeight> zobristTable(/*seed=*/2346);
 
 // In case all the bug types are represented in the same plane, these values are
 // used to represent each piece type.
@@ -47,7 +47,7 @@ class HiveBoard {
   void Clear();
   void InitBoard();
 
-  Hexagon GetHexagon(uint idx) const;
+  Hexagon GetHexagon(int idx) const;
   Hexagon GetHexagon(Offset o) const;
   Hexagon GetHexagon(int x, int y, int z) const;
   Hexagon GetHexagon(Bug b) const;
@@ -55,12 +55,12 @@ class HiveBoard {
   Hexagon Top(Hexagon h) const;
   Hexagon Bottom(Hexagon h) const;
 
-  bool IsSurrounded(uint h_idx) const;
+  bool IsSurrounded(int h_idx) const;
 
   void GenerateMoves(Hexagon h, BugType t, std::vector<HiveMove> &moves) const;
 
-  uint NumBugs() const;
-  uint NumBugs(Player p, BugType bt) const;
+  int NumBugs() const;
+  int NumBugs(Player p, BugType bt) const;
 
   std::vector<HiveMove> LegalMoves() const;
   void PlayMove(HiveMove& m);
@@ -75,13 +75,13 @@ class HiveBoard {
   std::array<int8_t, kBoardSize*kBoardSize*kBoardHeight> observation;
 
   // TODO: figure out how to normalize for transations and rotations
-  uint64_t zobrist_hash;
+  int64_t zobrist_hash;
 
  private:
   // For generating legal moves
   int FindClockwiseMove(Hexagon h, int prev_idx, Bug original) const;
   int FindCounterClockwiseMove(Hexagon h, int prev_idx, Bug original) const;
-  uint WalkThree(Hexagon h, int i, bool clockwise) const;
+  int WalkThree(Hexagon h, int i, bool clockwise) const;
   std::vector<Hexagon> FindJumpMoves(Hexagon h) const;
 
   void GenerateBeeMoves(Hexagon h, std::vector<HiveMove> &moves) const;
@@ -111,12 +111,12 @@ class HiveBoard {
 
   std::array<BugCollection, 2> bug_collections_;
 
-  std::array<std::unordered_set<uint>, 2> available_;
-  std::unordered_set<uint> unpinned_;
+  std::array<std::unordered_set<int>, 2> available_;
+  std::unordered_set<int> unpinned_;
 
-  std::unordered_set<uint> hexagons_;
-  std::array<uint, 2> bees_;
-  std::stack<uint> last_moved_;
+  std::unordered_set<int> hexagons_;
+  std::array<int, 2> bees_;
+  std::stack<int> last_moved_;
 
   std::array<Hexagon, kBoardSize*kBoardSize*kBoardHeight> board_;
 };

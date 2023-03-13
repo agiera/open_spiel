@@ -22,7 +22,7 @@
 namespace open_spiel {
 namespace hive {
 
-static const long mod(uint a, uint b) { return (a%b+b)%b; }
+static const long mod(int a, int b) { return (a%b+b)%b; }
 
 inline constexpr Player kWhite = 0;
 inline constexpr Player kBlack = 1;
@@ -111,7 +111,7 @@ class Offset {
   int8_t y;
   int8_t z;
 
-  uint index = x + kBoardSize*y + kBoardSize*kBoardSize*z;
+  int index = x + kBoardSize*y + kBoardSize*kBoardSize*z;
   std::array<Offset, 6> neighbours() const;
 
   Offset operator+(const Offset& other) const;
@@ -124,16 +124,16 @@ class Hexagon;
 class HiveMove {
  public:
   HiveMove() : pass(true) {}
-  HiveMove(BugType bt, uint t)
+  HiveMove(BugType bt, int t)
           : pass(false), place(true), bug_type(bt), to(t) {}
-  HiveMove(uint f, uint t)
+  HiveMove(int f, int t)
           : pass(false), place(false), from(f), to(t) {}
 
   bool pass;
   bool place;
   BugType bug_type;
-  uint from;
-  uint to;
+  int from;
+  int to;
 
   bool operator==(const HiveMove& other) const {
     if (pass != other.pass) { return false; }
@@ -163,12 +163,12 @@ class Hexagon {
 
   Bug bug;
 
-  uint above;
-  uint below;
-  std::array<uint, 6> neighbours;
+  int above;
+  int below;
+  std::array<int, 6> neighbours;
 };
 
-static const uint starting_hexagon = Offset(13, 13, 0).index;
+static const int starting_hexagon = Offset(13, 13, 0).index;
 static const Hexagon kEmptyHexagon = Hexagon();
 
 class BugCollection {
@@ -188,7 +188,7 @@ class BugCollection {
  private:
   Player player_;
   std::array<int8_t, 8> bug_counts_;
-  std::array<std::vector<uint>, 8> hexagons_;
+  std::array<std::vector<int>, 8> hexagons_;
 };
 
 inline std::ostream& operator<<(std::ostream& stream, const Bug& pt) {

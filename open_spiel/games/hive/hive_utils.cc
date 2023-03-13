@@ -134,7 +134,7 @@ BugCollection::BugCollection(Player p)
 
 void BugCollection::Reset() {
   bug_counts_ = { 0, 0, 0, 0, 0, 0, 0, 0 };
-  for (std::vector<uint> h_vec : hexagons_) {
+  for (std::vector<int> h_vec : hexagons_) {
     h_vec.clear();
   }
 }
