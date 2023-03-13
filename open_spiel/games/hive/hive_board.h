@@ -47,7 +47,7 @@ class HiveBoard {
   void Clear();
   void InitBoard();
 
-  Hexagon GetHexagon(size_t idx) const;
+  Hexagon GetHexagon(uint idx) const;
   Hexagon GetHexagon(Offset o) const;
   Hexagon GetHexagon(int x, int y, int z) const;
   Hexagon GetHexagon(Bug b) const;
@@ -55,12 +55,12 @@ class HiveBoard {
   Hexagon Top(Hexagon h) const;
   Hexagon Bottom(Hexagon h) const;
 
-  bool IsSurrounded(size_t h_idx) const;
+  bool IsSurrounded(uint h_idx) const;
 
   void GenerateMoves(Hexagon h, BugType t, std::vector<HiveMove> &moves) const;
 
-  std::size_t NumBugs() const;
-  std::size_t NumBugs(Player p, BugType bt) const;
+  uint NumBugs() const;
+  uint NumBugs(Player p, BugType bt) const;
 
   std::vector<HiveMove> LegalMoves() const;
   void PlayMove(HiveMove& m);
@@ -81,7 +81,7 @@ class HiveBoard {
   // For generating legal moves
   int FindClockwiseMove(Hexagon h, int prev_idx, Bug original) const;
   int FindCounterClockwiseMove(Hexagon h, int prev_idx, Bug original) const;
-  size_t WalkThree(Hexagon h, int i, bool clockwise) const;
+  uint WalkThree(Hexagon h, int i, bool clockwise) const;
   std::vector<Hexagon> FindJumpMoves(Hexagon h) const;
 
   void GenerateBeeMoves(Hexagon h, std::vector<HiveMove> &moves) const;
@@ -111,12 +111,12 @@ class HiveBoard {
 
   std::array<BugCollection, 2> bug_collections_;
 
-  std::array<std::unordered_set<size_t>, 2> available_;
-  std::unordered_set<size_t> unpinned_;
+  std::array<std::unordered_set<uint>, 2> available_;
+  std::unordered_set<uint> unpinned_;
 
-  std::unordered_set<size_t> hexagons_;
-  std::array<size_t, 2> bees_;
-  std::stack<size_t> last_moved_;
+  std::unordered_set<uint> hexagons_;
+  std::array<uint, 2> bees_;
+  std::stack<uint> last_moved_;
 
   std::array<Hexagon, kBoardSize*kBoardSize*kBoardHeight> board_;
 };

@@ -92,7 +92,7 @@ int HiveBoard::FindCounterClockwiseMove(Hexagon h, int prev_idx, Bug original) c
 std::vector<Hexagon> HiveBoard::FindJumpMoves(Hexagon h) const {
   std::vector<Hexagon> jumps;
   Hexagon b = Bottom(h);
-  for (size_t n_idx : b.neighbours) {
+  for (uint n_idx : b.neighbours) {
     Hexagon n = GetHexagon(n_idx);
     if (n.bug != kEmptyBug) {
       // TODO: filter gated
@@ -103,10 +103,10 @@ std::vector<Hexagon> HiveBoard::FindJumpMoves(Hexagon h) const {
   return jumps;
 }
 
-bool HiveBoard::IsSurrounded(size_t h_idx) const {
+bool HiveBoard::IsSurrounded(uint h_idx) const {
   Hexagon h = GetHexagon(h_idx);
   bool res = true;
-  for (size_t n_idx : h.neighbours) {
+  for (uint n_idx : h.neighbours) {
     Hexagon n = GetHexagon(n_idx);
     if (n.bug == kEmptyBug) {
       res = false;
@@ -169,12 +169,12 @@ void HiveBoard::GenerateBeetleMoves(Hexagon h, std::vector<HiveMove> &moves) con
 }
 
 void HiveBoard::GenerateAntMoves(Hexagon h, std::vector<HiveMove> &moves) const {
-  std::unordered_set<size_t> antMoves;
+  std::unordered_set<uint> antMoves;
 
   int i = FindClockwiseMove(h, 0, h.bug);
   int init_idx = i;
   Hexagon next = GetHexagon(h.neighbours[i]);
-  size_t root = next.loc.index;
+  uint root = next.loc.index;
   while (i != -1 && (next.loc.index != root || i != init_idx)) {
     antMoves.insert(h.loc.index);
 
@@ -182,7 +182,7 @@ void HiveBoard::GenerateAntMoves(Hexagon h, std::vector<HiveMove> &moves) const 
     next = GetHexagon(next.neighbours[i]);
   }
 
-  for (size_t p : antMoves) {
+  for (uint p : antMoves) {
     moves.push_back(HiveMove(h.loc.index, p));
   }
 }
@@ -201,7 +201,7 @@ void HiveBoard::GenerateGrasshopperMoves(Hexagon h, std::vector<HiveMove> &moves
   }
 }
 
-size_t HiveBoard::WalkThree(Hexagon h, int i, bool clockwise) const {
+uint HiveBoard::WalkThree(Hexagon h, int i, bool clockwise) const {
   if (clockwise) {
     int i = FindClockwiseMove(h, i, h.bug);
     h = GetHexagon(h.neighbours[i]);
@@ -221,24 +221,24 @@ size_t HiveBoard::WalkThree(Hexagon h, int i, bool clockwise) const {
 }
 
 void HiveBoard::GenerateSpiderMoves(Hexagon h, std::vector<HiveMove> &moves) const {
-  std::unordered_set<size_t> spiderMoves;
+  std::unordered_set<uint> spiderMoves;
   spiderMoves.insert(WalkThree(h, 0, true));
   spiderMoves.insert(WalkThree(h, 3, true));
   spiderMoves.insert(WalkThree(h, 0, false));
   spiderMoves.insert(WalkThree(h, 3, false));
   spiderMoves.erase(-1);
-  for (size_t p : spiderMoves) {
+  for (uint p : spiderMoves) {
     moves.push_back(HiveMove(h.loc.index, p));
   }
 }
 
 void HiveBoard::GenerateLadybugMoves(Hexagon h, std::vector<HiveMove> &moves) const {
-  std::unordered_set<size_t> ladybugMoves;
+  std::unordered_set<uint> ladybugMoves;
   for (Hexagon n : FindJumpMoves(h)) {
     for (Hexagon o : FindJumpMoves(n)) {
       // Can't jump on self
       if (o.bug == h.bug) { continue; }
-      for (size_t p_idx : o.neighbours) {
+      for (uint p_idx : o.neighbours) {
         Hexagon p = Bottom(GetHexagon(p_idx));
         if (p.bug == kEmptyBug) {
           ladybugMoves.insert(p_idx);
@@ -246,14 +246,14 @@ void HiveBoard::GenerateLadybugMoves(Hexagon h, std::vector<HiveMove> &moves) co
       }
     }
   }
-  for (size_t p_idx : ladybugMoves) {
+  for (uint p_idx : ladybugMoves) {
     moves.push_back(HiveMove(h.loc.index, p_idx));
   }
 }
 
 void HiveBoard::GenerateMosquitoMoves(Hexagon h, std::vector<HiveMove> &moves) const {
   std::unordered_set<BugType> mirrors;
-  for (size_t n_idx : h.neighbours) {
+  for (uint n_idx : h.neighbours) {
     Hexagon n = Top(GetHexagon(n_idx));
     if (n.bug != kEmptyBug) {
       mirrors.insert(n.bug.type);
@@ -268,17 +268,17 @@ void HiveBoard::GenerateMosquitoMoves(Hexagon h, std::vector<HiveMove> &moves) c
 
 void HiveBoard::GeneratePillbugMoves(Hexagon h, std::vector<HiveMove> &moves) const {
   GenerateBeeMoves(h, moves);
-  std::vector<size_t> emptyNeighbours;
-  for (size_t n_idx : h.neighbours) {
+  std::vector<uint> emptyNeighbours;
+  for (uint n_idx : h.neighbours) {
     Hexagon n = GetHexagon(n_idx);
     if (n.bug == kEmptyBug) {
       emptyNeighbours.push_back(n.loc.index);
     }
   }
-  for (size_t n_idx : h.neighbours) {
+  for (uint n_idx : h.neighbours) {
     Hexagon n = GetHexagon(n_idx);
     if (n.bug != kEmptyBug && BugCanMove(n)) {
-      for (size_t empty : emptyNeighbours) {
+      for (uint empty : emptyNeighbours) {
         moves.push_back(HiveMove(n_idx, empty));
       }
     }
@@ -293,7 +293,7 @@ HiveBoard::HiveBoard()
 
 void HiveBoard::Clear() {  
   hexagons_.clear();
-  bees_ = {(size_t) -1, (size_t) -1};
+  bees_ = {(uint) -1, (uint) -1};
   to_play = kWhite;
   outcome = kInvalidPlayer;
   is_terminal = false;
@@ -333,7 +333,7 @@ void HiveBoard::InitBoard() {
   }
 }
 
-Hexagon HiveBoard::GetHexagon(size_t idx) const {
+Hexagon HiveBoard::GetHexagon(uint idx) const {
   return board_[idx];
 }
 
@@ -355,11 +355,11 @@ Hexagon HiveBoard::GetHexagon(Bug b) const {
   }
 }
 
-std::size_t HiveBoard::NumBugs() const {
+uint HiveBoard::NumBugs() const {
   return hexagons_.size();
 }
 
-std::size_t HiveBoard::NumBugs(Player p, BugType bt) const {
+uint HiveBoard::NumBugs(Player p, BugType bt) const {
   return bug_collections_[p].NumBugs(bt);
 }
 
@@ -377,7 +377,7 @@ Player HiveBoard::HexagonOwner(Hexagon h) const {
   if (top.bug != kEmptyBug) { return p; }
 
   // Make sure there aren't enemy bugs around hex
-  for (size_t n_idx : h.neighbours) {
+  for (uint n_idx : h.neighbours) {
     Hexagon n = Top(GetHexagon(n_idx));
     if (n.bug != kEmptyBug) {
       if (p != kInvalidPlayer && p != n.bug.player) {
@@ -401,7 +401,7 @@ void HiveBoard::CacheHexagonOwner(Hexagon h) {
 
 void HiveBoard::CacheHexagonArea(Hexagon h) {
   CacheHexagonOwner(h);
-  for (size_t idx : h.neighbours) {
+  for (uint idx : h.neighbours) {
     CacheHexagonOwner(GetHexagon(idx));
   }
 
@@ -437,12 +437,12 @@ void HiveBoard::CacheUnpinnedHexagons() {
     postorderStack.push(curNode);
     SPIEL_DCHECK_NE(curNode->bug.order, -1);
     unpinned_.insert(curNode->loc.index);
-    curNode->visited = true;
-    curNode->num = num++;
-    curNode->low = curNode->num;
-    for (size_t n_idx : curNode->neighbours) {
+    curNode->bug.visited = true;
+    curNode->bug.num = num++;
+    curNode->bug.low = curNode->bug.num;
+    for (uint n_idx : curNode->neighbours) {
       Hexagon* n = &board_[n_idx];
-      if (!n->visited && n->bug != kEmptyBug) {
+      if (!n->bug.visited && n->bug != kEmptyBug) {
         SPIEL_DCHECK_NE(n->bug.order, -1);
         preorderStack.push(n);
       }
@@ -455,19 +455,19 @@ void HiveBoard::CacheUnpinnedHexagons() {
   while(!postorderStack.empty()) {
     Hexagon* curNode = postorderStack.top();
     postorderStack.pop();
-    curNode->visited = false;
-    for (size_t n_idx : curNode->neighbours) {
+    curNode->bug.visited = false;
+    for (uint n_idx : curNode->neighbours) {
       Hexagon* n = &board_[n_idx];
       if (n->bug == kEmptyBug) { continue; }
       // visited acts as an inverse here because of the fist traversal
-      if (n->visited) {
-        if (n->low >= curNode->num) {
+      if (n->bug.visited) {
+        if (n->bug.low >= curNode->bug.num) {
           unpinned_.erase(curNode->loc.index);
         }
-        n->low = std::min(n->low, curNode->num);
+        n->bug.low = std::min(n->bug.low, curNode->bug.num);
       // Back edge
       } else {
-        curNode->low = std::min(curNode->low, n->num);
+        curNode->bug.low = std::min(curNode->bug.low, n->bug.num);
       }
     }
   }
@@ -536,7 +536,7 @@ std::vector<HiveMove> HiveBoard::LegalMoves() const {
   // Player can only move bugs after the bee has been placed
   if (bees_[to_play] != -1) {
     //std::cout << "found bee\n";
-    for (size_t idx : hexagons_) {
+    for (uint idx : hexagons_) {
       Hexagon h = board_[idx];
       if (h.bug.player == to_play && BugCanMove(h)) {
         SPIEL_DCHECK_NE(h.bug.order, -1);
@@ -545,7 +545,7 @@ std::vector<HiveMove> HiveBoard::LegalMoves() const {
     }
   // Player must place bee by the third move
   } else if (hexagons_.size() >= 4) {
-    for (size_t idx : available_[to_play]) {
+    for (uint idx : available_[to_play]) {
       legal_moves.push_back(HiveMove(kBee, idx));
     }
     return legal_moves;
@@ -553,7 +553,7 @@ std::vector<HiveMove> HiveBoard::LegalMoves() const {
 
 
   // Player may always place bugs
-  for (size_t idx : available_[to_play]) {
+  for (uint idx : available_[to_play]) {
     //std::cout << "idx=" << idx << "\n";
     //std::cout << "available.bug=" << BugToString(GetHexagon(idx).bug) << "\n";
     for (int8_t bug=0; bug < kNumBugTypes; bug++) {

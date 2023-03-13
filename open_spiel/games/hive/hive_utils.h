@@ -22,7 +22,7 @@
 namespace open_spiel {
 namespace hive {
 
-static const long mod(long a, long b) { return (a%b+b)%b; }
+static const long mod(uint a, uint b) { return (a%b+b)%b; }
 
 inline constexpr Player kWhite = 0;
 inline constexpr Player kBlack = 1;
@@ -72,6 +72,10 @@ struct Bug {
   BugType type;
   int8_t order;
 
+  bool visited = false;
+  int num;
+  int low;
+
   bool operator==(const Bug& other) const {
     return type == other.type && player == other.player && order == other.order;
   }
@@ -107,7 +111,7 @@ class Offset {
   int8_t y;
   int8_t z;
 
-  size_t index = x + kBoardSize*y + kBoardSize*kBoardSize*z;
+  uint index = x + kBoardSize*y + kBoardSize*kBoardSize*z;
   std::array<Offset, 6> neighbours() const;
 
   Offset operator+(const Offset& other) const;
@@ -120,16 +124,16 @@ class Hexagon;
 class HiveMove {
  public:
   HiveMove() : pass(true) {}
-  HiveMove(BugType bt, size_t t)
+  HiveMove(BugType bt, uint t)
           : pass(false), place(true), bug_type(bt), to(t) {}
-  HiveMove(size_t f, size_t t)
+  HiveMove(uint f, uint t)
           : pass(false), place(false), from(f), to(t) {}
 
   bool pass;
   bool place;
   BugType bug_type;
-  size_t from;
-  size_t to;
+  uint from;
+  uint to;
 
   bool operator==(const HiveMove& other) const {
     if (pass != other.pass) { return false; }
@@ -159,17 +163,12 @@ class Hexagon {
 
   Bug bug;
 
-  size_t above;
-  size_t below;
-  std::array<size_t, 6> neighbours;
-
-  Hexagon* parent;
-  bool visited;
-  int num;
-  int low;
+  uint above;
+  uint below;
+  std::array<uint, 6> neighbours;
 };
 
-static const size_t starting_hexagon = Offset(13, 13, 0).index;
+static const uint starting_hexagon = Offset(13, 13, 0).index;
 static const Hexagon kEmptyHexagon = Hexagon();
 
 class BugCollection {
@@ -189,7 +188,7 @@ class BugCollection {
  private:
   Player player_;
   std::array<int8_t, 8> bug_counts_;
-  std::array<std::vector<size_t>, 8> hexagons_;
+  std::array<std::vector<uint>, 8> hexagons_;
 };
 
 inline std::ostream& operator<<(std::ostream& stream, const Bug& pt) {

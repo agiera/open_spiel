@@ -74,11 +74,11 @@ std::string HiveActionToString(HiveAction action) {
   }
 
   res += " ";
-  if (action.neighbour >= 3) {
+  if (action.neighbour == 0 || action.neighbour > 3) {
     res += kNeighbourSymbols[action.neighbour];
   }
   res += BugToString(action.around);
-  if (action.neighbour <= 2) {
+  if (action.neighbour != 0 && action.neighbour <= 3) {
     res += kNeighbourSymbols[action.neighbour];
   }
 
@@ -116,8 +116,8 @@ HiveMove HiveState::HiveActionToHiveMove(HiveAction action) const {
 HiveAction HiveState::HiveMoveToHiveAction(HiveMove move) const {
   std::cout << "\nHiveMoveToHiveAction\n";
   std::cout << "move.pass=" << move.pass << "\n";
-  std::cout << "move.place=" << move.place << "\n";
   if (move.pass) { return HiveAction{true}; }
+  std::cout << "move.place=" << move.place << "\n";
   std::cout << "move.to=" << move.to << "\n";
   std::cout << "board_.to_play=" << board_.to_play << "\n";
 

@@ -124,7 +124,6 @@ Hexagon::Hexagon() {
   loc.y = 0;
   loc.z = 0;
   bug = kEmptyBug;
-  visited = false;
   above = -1;
   below = -1;
   neighbours.fill(-1);
@@ -135,7 +134,7 @@ BugCollection::BugCollection(Player p)
 
 void BugCollection::Reset() {
   bug_counts_ = { 0, 0, 0, 0, 0, 0, 0, 0 };
-  for (std::vector<size_t> h_vec : hexagons_) {
+  for (std::vector<uint> h_vec : hexagons_) {
     h_vec.clear();
   }
 }

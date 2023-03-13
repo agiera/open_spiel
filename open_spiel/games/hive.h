@@ -53,7 +53,7 @@ static const int kNumActions = 1 + kNumBugs * kNumBugs * 6;
 inline constexpr int kNumRepetitionsToDraw = 3;
 
 static const std::array<std::string, 6> kNeighbourSymbols = {
-  "/", "-", "\\", "/", "-", "\\"
+  "\\", "/", "-", "\\", "/", "-"
 };
 
 struct HiveAction {
