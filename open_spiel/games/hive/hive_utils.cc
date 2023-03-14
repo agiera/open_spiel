@@ -169,7 +169,7 @@ void BugCollection::ReturnBug(Hexagon* h) {
 
 absl::optional<Offset> BugCollection::GetBug(Bug b) const {
   if (b.order >= bug_counts_[b.type]) {
-    std::cout << "no bug found in collection\n";
+    //std::cout << "no bug found in collection\n";
     return absl::nullopt;
   }
   return hexagons_[b.type][b.order];

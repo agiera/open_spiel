@@ -58,7 +58,7 @@ int HiveBoard::FindClockwiseMove(Hexagon h, int prev_idx, Bug original) const {
   Hexagon n2 = GetHexagon(h.neighbours[j]);
   Hexagon n3 = GetHexagon(h.neighbours[hive::mod(j+1, 6)]);
   for (int i=0; i < 6; i++) {
-    std::cout << "h.neighbours[j].loc=" << OffsetToString(n2.loc) << "\n";
+    //std::cout << "h.neighbours[j].loc=" << OffsetToString(n2.loc) << "\n";
     j = mod(prev_idx + 1 - i, 6);
     n1 = n2;
     n2 = n3;
@@ -374,19 +374,19 @@ bool HiveBoard::BugCanMove(Hexagon h) const {
 }
 
 Player HiveBoard::HexagonOwner(Hexagon h) const {
-  std::cout << "\nHexagonOwner\n";
+  //std::cout << "\nHexagonOwner\n";
   Player p = kInvalidPlayer;
 
   // Can't place bug on top of your own
   Hexagon top = Top(h);
   if (top.bug != kEmptyBug) { return p; }
 
-  std::cout << "top.loc=" << OffsetToString(top.loc);
+  //std::cout << "top.loc=" << OffsetToString(top.loc);
   // Make sure there aren't enemy bugs around hex
   for (int n_idx : h.neighbours) {
     Hexagon n = Top(GetHexagon(n_idx));
-    std::cout << "n.loc=" << OffsetToString(n.loc);
-    std::cout << "n.bug=" << BugToString(n.bug) << "\n";
+    //std::cout << "n.loc=" << OffsetToString(n.loc);
+    //std::cout << "n.bug=" << BugToString(n.bug) << "\n";
     if (n.bug != kEmptyBug) {
       if (p != kInvalidPlayer && p != n.bug.player) {
         return kInvalidPlayer;
@@ -400,7 +400,7 @@ Player HiveBoard::HexagonOwner(Hexagon h) const {
 void HiveBoard::CacheHexagonOwner(Hexagon h) {
   Player p = HexagonOwner(h);
   if (p != kInvalidPlayer) {
-    std::cout << "caching in available_\n";
+    //std::cout << "caching in available_\n";
     available_[p].insert(h.loc.index);
   } else {
     available_[kBlack].erase(h.loc.index);
@@ -475,7 +475,7 @@ void HiveBoard::CachePinnedHexagons() {
       curNode->bug.low = std::min(curNode->bug.low, n->bug.low);
       if (n->bug.low >= curNode->bug.num) {
         if (curNode->bug.parent != -1 || curNode->bug.children > 1) {
-          std::cout << "pinned: " << BugToString(curNode->bug) << "\n";
+          //std::cout << "pinned: " << BugToString(curNode->bug) << "\n";
           pinned_.insert(curNode->loc.index);
         }
       }
@@ -568,7 +568,7 @@ std::vector<HiveMove> HiveBoard::LegalMoves() const {
   // Player may always place bugs
   for (int idx : available_[to_play]) {
     //std::cout << "idx=" << idx << "\n";
-    std::cout << "available.bug=" << BugToString(GetHexagon(idx).bug) << "\n";
+    //std::cout << "available.bug=" << BugToString(GetHexagon(idx).bug) << "\n";
     for (int8_t bug=0; bug < kNumBugTypes; bug++) {
       if (bug_collections_[to_play].HasBug((BugType) bug)) {
         //std::cout << kBugTypeChars[bug] << "\n";
