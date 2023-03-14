@@ -369,7 +369,7 @@ int HiveBoard::NumBugs(Player p, BugType bt) const {
 
 bool HiveBoard::BugCanMove(Hexagon h) const {
   Hexagon above = GetHexagon(h.above);
-  return (unpinned_.count(h.loc.index) || h.loc.z > 0) \
+  return (!pinned_.count(h.loc.index) || h.loc.z > 0) \
          && above.bug == kEmptyBug && last_moved_.top() != h.loc.index;
 }
 
@@ -423,62 +423,66 @@ void HiveBoard::CacheHexagonArea(Hexagon h) {
   }
 }
 
-void HiveBoard::CacheUnpinnedHexagons() {
+void HiveBoard::CachePinnedHexagons() {
   // TODO: Find or create an articulation point vertex streaming algorithm.
   //       It's also possible there could be some optimizations for
   //       hexagon grid or planar graphs.
-  unpinned_.clear();
+  pinned_.clear();
   if (hexagons_.empty()) { return; }
   std::stack<Hexagon*> preorderStack;
   std::stack<Hexagon*> postorderStack;
   Hexagon* root = &board_[*(hexagons_.begin())];
   SPIEL_DCHECK_NE(root->bug.order, -1);
   root = &board_[Bottom(*root).loc.index];
-  SPIEL_DCHECK_NE(root->bug.order, -1);
+  root->bug.visited = true;
   preorderStack.push(root);
   int num = 0;
   // Pre-order traversal
-  // Resets num and low for all nodes
-  // Adds all nodes to unpinned_ as candidates
+  // Builds DFS tree
   while (!preorderStack.empty()) {
     Hexagon* curNode = preorderStack.top();
     preorderStack.pop();
     postorderStack.push(curNode);
     SPIEL_DCHECK_NE(curNode->bug.order, -1);
-    unpinned_.insert(curNode->loc.index);
-    curNode->bug.visited = true;
+
     curNode->bug.num = num++;
     curNode->bug.low = curNode->bug.num;
+    curNode->bug.children = 0;
+
     for (int n_idx : curNode->neighbours) {
       Hexagon* n = &board_[n_idx];
-      if (!n->bug.visited && n->bug != kEmptyBug) {
-        SPIEL_DCHECK_NE(n->bug.order, -1);
+      if (n->bug == kEmptyBug) { continue; }
+
+      if (!n->bug.visited) {
+        curNode->bug.children++;
+
+        n->bug.parent = curNode->loc.index;
+
+        n->bug.visited = true;
         preorderStack.push(n);
       }
     }
   }
   // Post-order traversal
-  // Calculates each node's distance to the root
-  // Resets visited attribute
-  // Removes articulation nodes from unpinned_
+  // Caluclates articulation points based on DFS tree structure
   while(!postorderStack.empty()) {
     Hexagon* curNode = postorderStack.top();
     postorderStack.pop();
-    curNode->bug.visited = false;
     for (int n_idx : curNode->neighbours) {
       Hexagon* n = &board_[n_idx];
       if (n->bug == kEmptyBug) { continue; }
-      // visited acts as an inverse here because of the fist traversal
-      if (n->bug.visited) {
-        if (n->bug.low >= curNode->bug.num) {
-          unpinned_.erase(curNode->loc.index);
+
+      curNode->bug.low = std::min(curNode->bug.low, n->bug.low);
+      if (n->bug.low >= curNode->bug.num) {
+        if (curNode->bug.parent != -1 || curNode->bug.children > 1) {
+          std::cout << "pinned: " << BugToString(curNode->bug) << "\n";
+          pinned_.insert(curNode->loc.index);
         }
-        n->bug.low = std::min(n->bug.low, curNode->bug.num);
-      // Back edge
-      } else {
-        curNode->bug.low = std::min(curNode->bug.low, n->bug.num);
       }
     }
+    // Reset attributes for next fn call
+    curNode->bug.visited = false;
+    curNode->bug.parent = -1;
   }
 }
 
@@ -617,7 +621,7 @@ void HiveBoard::PlayMove(HiveMove &m) {
   last_moved_.push(m.to);
 
   // TODO: lazily eval legal moves, add getter
-  CacheUnpinnedHexagons();
+  CachePinnedHexagons();
   CacheOutcome();
   CacheIsTerminal();
   to_play = (Player) !to_play;
@@ -634,7 +638,7 @@ void HiveBoard::UndoMove(HiveMove &m) {
   }
   last_moved_.pop();
 
-  CacheUnpinnedHexagons();
+  CachePinnedHexagons();
   CacheOutcome();
   CacheIsTerminal();
   to_play = (Player) !to_play;

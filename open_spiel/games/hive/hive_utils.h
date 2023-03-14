@@ -73,8 +73,10 @@ struct Bug {
   int8_t order;
 
   bool visited = false;
+  int parent = -1;
   int num;
   int low;
+  int children;
 
   bool operator==(const Bug& other) const {
     return type == other.type && player == other.player && order == other.order;

@@ -98,7 +98,7 @@ class HiveBoard {
   void CacheHexagonOwner(Hexagon h);
   void CacheHexagonArea(Hexagon h);
 
-  void CacheUnpinnedHexagons();
+  void CachePinnedHexagons();
 
   // For applying or undoing moves
   void PlaceBug(Hexagon* h, Bug b);
@@ -112,7 +112,7 @@ class HiveBoard {
   std::array<BugCollection, 2> bug_collections_;
 
   std::array<std::unordered_set<int>, 2> available_;
-  std::unordered_set<int> unpinned_;
+  std::unordered_set<int> pinned_;
 
   std::unordered_set<int> hexagons_;
   std::array<int, 2> bees_;

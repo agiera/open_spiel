@@ -141,7 +141,7 @@ class HiveGame : public Game {
     return shape;
   }
   // TODO: figure out resonable upper bound
-  int MaxGameLength() const override { return 1000; }
+  int MaxGameLength() const override { return 10000; }
 };
 
 }  // namespace hive
