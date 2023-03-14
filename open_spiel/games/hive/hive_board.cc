@@ -585,9 +585,9 @@ std::vector<HiveMove> HiveBoard::LegalMoves() const {
 };
 
 void HiveBoard::CacheOutcome() {
-  // TODO: check if it's possible to lose whithout an opposing bee
   if (bees_[kWhite] == -1 || bees_[kBlack] == -1) {
     outcome = kInvalidPlayer;
+    is_terminal = false;
     return;
   }
 
@@ -598,14 +598,8 @@ void HiveBoard::CacheOutcome() {
   } else {
     outcome = kInvalidPlayer;
   }
-}
 
-void HiveBoard::CacheIsTerminal() {
-  if (bees_[kWhite] == -1 || bees_[kBlack] == -1) {
-    is_terminal = false;
-    return;
-  }
-  is_terminal = IsSurrounded(bees_[kWhite]) || IsSurrounded(bees_[kBlack]);
+  is_terminal = outcome != kInvalidPlayer;
 }
 
 void HiveBoard::PlayMove(HiveMove &m) {
@@ -623,7 +617,6 @@ void HiveBoard::PlayMove(HiveMove &m) {
   // TODO: lazily eval legal moves, add getter
   CachePinnedHexagons();
   CacheOutcome();
-  CacheIsTerminal();
   to_play = (Player) !to_play;
 }
 
@@ -640,7 +633,6 @@ void HiveBoard::UndoMove(HiveMove &m) {
 
   CachePinnedHexagons();
   CacheOutcome();
-  CacheIsTerminal();
   to_play = (Player) !to_play;
 }
 

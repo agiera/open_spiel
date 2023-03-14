@@ -105,9 +105,7 @@ class HiveBoard {
   Bug MoveBug(Hexagon* from, Hexagon* to);
   Bug RemoveBug(Hexagon* h);
 
-  // For calculating outcome
   void CacheOutcome();
-  void CacheIsTerminal();
 
   std::array<BugCollection, 2> bug_collections_;
 
