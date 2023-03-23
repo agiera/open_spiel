@@ -108,7 +108,7 @@ std::vector<Hexagon> HiveBoard::FindJumpMoves(Hexagon h) const {
   return jumps;
 }
 
-bool HiveBoard::IsSurrounded(int h_idx) const {
+bool HiveBoard::IsSurrounded(OffsetIdx h_idx) const {
   Hexagon h = GetHexagon(h_idx);
   bool res = true;
   for (int n_idx : h.loc.neighbours) {
@@ -310,7 +310,7 @@ void HiveBoard::Clear() {
 
   pinned_.clear();
 
-  bees_ = {(int) -1, (int) -1};
+  bees_ = {(uint8_t) -1, (uint8_t) -1};
   last_moved_.clear();
   to_play = kWhite;
   
@@ -336,7 +336,7 @@ void HiveBoard::InitBoard() {
   }
 }
 
-Hexagon HiveBoard::GetHexagon(int idx) const {
+Hexagon HiveBoard::GetHexagon(OffsetIdx idx) const {
   if (board_[idx].bug_idx == -1) return kEmptyHexagon;
   return hexagons_[board_[idx].bug_idx];
 }
@@ -345,11 +345,11 @@ Hexagon HiveBoard::GetHexagon(Offset o) const {
   return GetHexagon(o.idx);
 }
 
-Hexagon HiveBoard::GetHexagon(int x, int y, int z) const {
+Hexagon HiveBoard::GetHexagon(uint8_t x, uint8_t y, uint8_t z) const {
   return GetHexagon(Offset(x, y));
 }
 
-Hexagon HiveBoard::GetHexagonFromBug(int bug_idx) const {
+Hexagon HiveBoard::GetHexagonFromBug(BugIdx bug_idx) const {
   return hexagons_[bug_idx];
 }
 
@@ -482,7 +482,7 @@ void HiveBoard::CachePinnedHexagons() {
   }
 }
 
-Bug HiveBoard::MoveBug(int from_idx, int to_idx) {
+Bug HiveBoard::MoveBug(OffsetIdx from_idx, OffsetIdx to_idx) {
   Hexagon* from = &hexagons_[board_[from_idx].bug_idx];
   SPIEL_DCHECK_NE(from->bug.order, -1);
 
@@ -518,7 +518,7 @@ Bug HiveBoard::MoveBug(int from_idx, int to_idx) {
   return b;
 }
 
-Bug HiveBoard::RemoveBug(int h_idx) {
+Bug HiveBoard::RemoveBug(OffsetIdx h_idx) {
   Hexagon* h = &hexagons_[board_[h_idx].bug_idx];
   SPIEL_DCHECK_NE(h->bug.order, -1);
   Bug b = h->bug;
@@ -544,7 +544,7 @@ Bug HiveBoard::RemoveBug(int h_idx) {
   return b;
 }
 
-void HiveBoard::PlaceBug(int h_idx, Bug b) {
+void HiveBoard::PlaceBug(OffsetIdx h_idx, Bug b) {
   Bug bug = bug_collections_[b.player].UseBug(b.type);
   Hexagon* h = &hexagons_[bug.idx];
   SPIEL_DCHECK_NE(b.order, -1);

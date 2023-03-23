@@ -59,7 +59,7 @@ const std::array<Offset, 6> oddRowNeighbors = {
   Offset(1, 1), Offset(0, 1), Offset(-1, 0),
 };
 
-Offset::Offset(int x, int y) {
+Offset::Offset(uint8_t x, uint8_t y) {
   y = idx / kBoardSize;
   x = mod(idx, kBoardSize);
 
@@ -87,7 +87,7 @@ bool Offset::operator!=(const Offset& other) const {
   return !operator==(other);
 }
 
-Offset neighbourOffset(Offset o, int i) {
+Offset neighbourOffset(Offset o, uint8_t i) {
   if (mod(o.y, 2) == 0) {
     return o + evenRowNeighbors[i];
   }

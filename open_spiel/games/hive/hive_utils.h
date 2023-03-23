@@ -16,6 +16,7 @@
 #define OPEN_SPIEL_GAMES_HIVE_HIVE_UTILS_H_
 
 #include "open_spiel/spiel_utils.h"
+#include "open_spiel/games/chess/chess_common.h"
 
 #include <array>
 
@@ -56,6 +57,11 @@ static const std::array<std::string, kNumBugTypes> kBugTypeChars = {
   "Q", "B", "A", "G", "S", "L", "M", "P"
 };
 
+static const chess_common::ZobristTable<int64_t, 2, kNumBugs, kBoardSize, kBoardSize> zobristTable(/*seed=*/2346);
+
+using BugIdx = uint8_t;
+using OffsetIdx = uint16_t;
+
 enum BugType : int8_t {
   kBee = 0,
   kBeetle = 1,
@@ -76,11 +82,11 @@ class Bug {
   BugType type;
   int8_t order;
 
-  int idx = player*kNumBugs/2 + bug_series[type] + order;
+  BugIdx idx = player*kNumBugs/2 + bug_series[type] + order;
 
-  int above;
-  int below;
-  std::array<int, 6> neighbours;
+  BugIdx above;
+  BugIdx below;
+  std::array<BugIdx, 6> neighbours;
 
   bool visited = false;
   int parent = -1;
@@ -113,16 +119,16 @@ inline int8_t addBoardCoords(int8_t a, int8_t b) {
 
 class Offset {
  public:
-  Offset(int x_, int y_);
-  Offset(int idx) : Offset(mod(idx, kBoardSize), idx / kBoardSize) {}
+  Offset(uint8_t x_, uint8_t y_);
+  Offset(OffsetIdx idx) : Offset(mod(idx, kBoardSize), idx / kBoardSize) {}
   Offset() : Offset(0, 0) {}
 
-  int8_t x;
-  int8_t y;
-  std::array<int, 6> neighbours;
+  uint8_t x;
+  uint8_t y;
+  std::array<OffsetIdx, 6> neighbours;
 
-  int idx = x + kBoardSize*y;
-  int bug_idx = -1;
+  OffsetIdx idx = x + kBoardSize*y;
+  BugIdx bug_idx = -1;
 
   Offset operator+(const Offset& other) const;
   bool operator==(const Offset& other) const;
@@ -132,16 +138,16 @@ class Offset {
 class HiveMove {
  public:
   HiveMove() : pass(true) {}
-  HiveMove(BugType bt, int t)
+  HiveMove(BugType bt, OffsetIdx t)
           : pass(false), place(true), bug_type(bt), to(t) {}
-  HiveMove(int f, int t)
+  HiveMove(OffsetIdx f, OffsetIdx t)
           : pass(false), place(false), from(f), to(t) {}
 
   bool pass;
   bool place;
   BugType bug_type;
-  int from;
-  int to;
+  OffsetIdx from;
+  OffsetIdx to;
 
   bool operator==(const HiveMove& other) const {
     if (pass != other.pass) { return false; }
@@ -171,7 +177,7 @@ class Hexagon {
   Bug bug;
 };
 
-static const int starting_hexagon = Offset(13, 13).idx;
+static const OffsetIdx starting_hexagon = Offset(13, 13).idx;
 static const Hexagon kEmptyHexagon = Hexagon();
 
 class BugCollection {

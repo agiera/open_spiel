@@ -25,19 +25,11 @@
 #include <set>
 
 #include "open_spiel/games/hive/hive_utils.h"
-#include "open_spiel/games/chess/chess_common.h"
 #include "open_spiel/spiel_utils.h"
 #include "open_spiel/abseil-cpp/absl/types/optional.h"
 
 namespace open_spiel {
 namespace hive {
-
-static const chess_common::ZobristTable<int64_t, 2, kNumBugs, kBoardSize, kBoardSize> zobristTable(/*seed=*/2346);
-
-// In case all the bug types are represented in the same plane, these values are
-// used to represent each piece type.
-static inline constexpr std::array<float, kNumBugTypes> kBugTypeRepresentation = {
-    {1, 0.875, 0.75, 0.625, 0.5, 0.375, 0.25, 0.125}};
 
 // Simple Hive board.
 class HiveBoard {
@@ -47,16 +39,16 @@ class HiveBoard {
   void Clear();
   void InitBoard();
 
-  Hexagon GetHexagon(int idx) const;
+  Hexagon GetHexagon(OffsetIdx idx) const;
   Hexagon GetHexagon(Offset o) const;
-  Hexagon GetHexagon(int x, int y, int z) const;
-  Hexagon GetHexagonFromBug(int bug_idx) const;
+  Hexagon GetHexagon(uint8_t x, uint8_t y, uint8_t z) const;
+  Hexagon GetHexagonFromBug(BugIdx bug_idx) const;
   Hexagon GetHexagonFromBug(Bug b) const;
 
   Hexagon Top(Hexagon h) const;
   Hexagon Bottom(Hexagon h) const;
 
-  bool IsSurrounded(int h_idx) const;
+  bool IsSurrounded(OffsetIdx h_idx) const;
 
   void GenerateMoves(Hexagon h, BugType t, std::vector<HiveMove> &moves) const;
 
@@ -69,7 +61,7 @@ class HiveBoard {
 
   Player to_play;
 
-  std::vector<int> last_moved_;
+  std::vector<BugIdx> last_moved_;
   Player outcome;
   bool is_terminal;
 
@@ -99,22 +91,22 @@ class HiveBoard {
   void CachePinnedHexagons();
 
   // For applying or undoing moves
-  void PlaceBug(int h_idx, Bug b);
-  Bug MoveBug(int from_idx, int to_idx);
-  Bug RemoveBug(int h_idx);
+  void PlaceBug(OffsetIdx h_idx, Bug b);
+  Bug MoveBug(OffsetIdx from_idx, OffsetIdx to_idx);
+  Bug RemoveBug(OffsetIdx h_idx);
 
   void CacheOutcome();
 
   std::array<BugCollection, 2> bug_collections_;
 
-  std::array<std::unordered_set<int>, 2> available_;
-  std::unordered_set<int> pinned_;
+  std::array<std::unordered_set<BugIdx>, 2> available_;
+  std::unordered_set<BugIdx> pinned_;
 
-  std::array<int, 2> bees_;
+  std::array<BugIdx, 2> bees_;
 
   std::array<Hexagon, kNumBugs> hexagons_;
   std::array<Offset, kBoardSize*kBoardSize> board_;
-  std::unordered_set<int> top_hexagons_;
+  std::unordered_set<BugIdx> top_hexagons_;
 };
 
 }  // namespace go
