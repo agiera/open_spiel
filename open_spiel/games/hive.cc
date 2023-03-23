@@ -57,8 +57,11 @@ REGISTER_SPIEL_GAME(kGameType, Factory);
 template <typename T>
 void AddScalarPlane(T val, T min, T max,
                     absl::Span<float>::iterator& value_it) {
+  if (val == min) {
+    value_it += kTensorSize*kTensorSize;
+  }
   double normalized_val = static_cast<double>(val - min) / (max - min);
-  for (int i = 0; i < kBoardSize*kBoardSize; ++i) *value_it++ = normalized_val;
+  for (int i = 0; i < kTensorSize*kTensorSize; ++i) *value_it++ = normalized_val;
 }
 
 }  // namespace
@@ -88,17 +91,17 @@ std::string HiveActionToString(HiveAction action) {
 HiveMove HiveState::HiveActionToHiveMove(HiveAction action) const {
   //std::cout << "\nHiveActionToHiveMove\n";
   if (action.pass) { return HiveMove(); }
-  Hexagon from = board_.GetHexagon(action.from);
+  Hexagon from = board_.GetHexagonFromBug(action.from);
   //std::cout << "from=" << BugToString(from.bug) << "\n";
-  Hexagon around = board_.GetHexagon(action.around);
+  Hexagon around = board_.GetHexagonFromBug(action.around);
   //std::cout << "around=" << BugToString(around.bug) << "\n";
   Hexagon to = around;
   if (to.bug != kEmptyBug) {
-    to = board_.GetHexagon(to.neighbours[action.neighbour]);
+    to = board_.GetHexagon(to.loc.neighbours[action.neighbour]);
     to = board_.Top(to);
     //std::cout << "to=" << BugToString(to.bug) << "\n";
     if (to.bug != kEmptyBug && to.bug != from.bug) {
-      to = board_.GetHexagon(to.above);
+      to = board_.GetHexagonFromBug(to.bug.above);
     }
   }
   // Case that player is placing a bug
@@ -108,9 +111,9 @@ HiveMove HiveState::HiveActionToHiveMove(HiveAction action) const {
     } else if (board_.NumBugs() == 1) {
       return HiveMove(action.from.type, starting_hexagon + 1);
     }
-    return HiveMove(action.from.type, to.loc.index);
+    return HiveMove(action.from.type, to.loc.idx);
   }
-  return HiveMove(from.loc.index, to.loc.index);
+  return HiveMove(from.loc.idx, to.loc.idx);
 }
 
 HiveAction HiveState::HiveMoveToHiveAction(HiveMove move) const {
@@ -135,7 +138,7 @@ HiveAction HiveState::HiveMoveToHiveAction(HiveMove move) const {
   Hexagon to = board_.GetHexagon(move.to);
   //std::cout << "to=" << HexagonToString(to) << "\n";
   for (int8_t i=0; i < 6; i++) {
-    Hexagon neighbour = board_.GetHexagon(to.neighbours[i]);
+    Hexagon neighbour = board_.GetHexagon(to.loc.neighbours[i]);
     neighbour = board_.Bottom(neighbour);
     // Don't use self for reference
     if (neighbour.bug != kEmptyBug && neighbour.bug != from) {
@@ -181,16 +184,16 @@ HiveAction HiveState::ActionToHiveAction(Action action) const {
 
   // This is a first move
   if (board_.NumBugs() < 2) {
-    return HiveAction{false, from, around, neighbour, true, false, false};
+    return HiveAction{false, from, around, neighbour, true, false};
   }
 
   // Add optional attributes for string representation
-  Hexagon around_hex = board_.GetHexagon(around);
+  Hexagon around_hex = board_.GetHexagonFromBug(around);
   bool jump = false;
   Bug on = Bug{kWhite, kBee, 0};
   //std::cout << "around_hex.bug=" << BugToString(around_hex.bug) << "\n";
   if (around_hex.bug != kEmptyBug) {
-    Hexagon to = board_.GetHexagon(around_hex.neighbours[neighbour]);
+    Hexagon to = board_.GetHexagon(around_hex.loc.neighbours[neighbour]);
     to = board_.Top(to);
     //std::cout << "to.bug=" << BugToString(to.bug) << "\n";
     jump = to.bug != kEmptyBug && to.bug != from;
@@ -320,6 +323,10 @@ std::string HiveState::ObservationString(Player player) const {
   return ToString();
 }
 
+// Representation is encoded as an adjacency graph.
+// However that wouldn't encode the structure of the hexagons properly.
+// The way to fix it is to introduce 6 new bugs. A bug's will be adjecent to
+// the ith new bug if it's ith side isn't adjacent to a different bug.
 void HiveState::ObservationTensor(Player player,
                                   absl::Span<float> values) const {
   SPIEL_DCHECK_GE(player, 0);
@@ -327,13 +334,37 @@ void HiveState::ObservationTensor(Player player,
 
   auto value_it = values.begin();
 
-  std::copy(board_.observation.begin(), board_.observation.end(), value_it);
+  int adj_mat_size = kNumBugs*(kNumBugs + 6);
 
+  for (int i=0; i < kNumBugs; i++) {
+    Hexagon h = board_.GetHexagonFromBug(i);
+    if (h.bug == kEmptyBug) continue;
+    if (h.bug.above != -1) {
+      Hexagon above = board_.GetHexagonFromBug(h.bug.above);
+      int bug_val = above.bug.type == kBeetle;
+      values[adj_mat_size + kNumBugs*bug_val + h.bug.idx] = 1.0;
+      continue;
+    }
+    for (int n_idx=0; n_idx < 6; n_idx++) {
+      int n = h.bug.neighbours[n_idx];
+      if (n == -1) {
+        value_it[kNumBugs + n_idx] = 1.0;
+      } else {
+        value_it[n] = 1.0;
+      }
+    }
+    value_it += kNumBugs + 6;
+  }
+
+  value_it += (15 + 1)*8*8 - adj_mat_size;
+ 
   // Num repetitions for the current board.
   AddScalarPlane((int) repetitions_.count(board_.zobrist_hash), 1, 3, value_it);
-
-  // TODO: Add last moved hex
-  // AddBinaryPlane(board_.last_moved_, value_it);
+ 
+  int last_moved = board_.last_moved_.back();
+  AddScalarPlane(last_moved, -1, kNumBugs-1, value_it);
+ 
+  AddScalarPlane(board_.to_play, 0, 1, value_it);
 
   //SPIEL_DCHECK_EQ(value_it, values.end());
 }

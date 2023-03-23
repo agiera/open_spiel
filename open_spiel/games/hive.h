@@ -52,6 +52,8 @@ static const int kNumActions = 1 + kNumBugs * kNumBugs * 6;
 
 inline constexpr int kNumRepetitionsToDraw = 3;
 
+inline constexpr int kTensorSize = 8;
+
 static const std::array<std::string, 6> kNeighbourSymbols = {
   "\\", "/", "-", "\\", "/", "-"
 };
@@ -135,9 +137,10 @@ class HiveGame : public Game {
   double MaxUtility() const override { return 1; }
   std::vector<int> ObservationTensorShape() const override {
     static std::vector<int> shape{
-      13 /* piece types * colours + empty */ + 1 /* repetition count */ +
+      15 /* Adjacency matrix layers */ + 1 /* stack adj mat */ +
+          1 /* repetition count */ +
           1 /* last moved piece */ + 1 /* side to move */,
-      kBoardSize, kBoardSize, kBoardHeight};
+      kTensorSize, kTensorSize};
     return shape;
   }
   // TODO: figure out resonable upper bound

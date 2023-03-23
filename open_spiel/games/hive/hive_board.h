@@ -32,7 +32,7 @@
 namespace open_spiel {
 namespace hive {
 
-static const chess_common::ZobristTable<int64_t, 2, kNumBugs, kBoardSize, kBoardSize, kBoardHeight> zobristTable(/*seed=*/2346);
+static const chess_common::ZobristTable<int64_t, 2, kNumBugs, kBoardSize, kBoardSize> zobristTable(/*seed=*/2346);
 
 // In case all the bug types are represented in the same plane, these values are
 // used to represent each piece type.
@@ -50,7 +50,8 @@ class HiveBoard {
   Hexagon GetHexagon(int idx) const;
   Hexagon GetHexagon(Offset o) const;
   Hexagon GetHexagon(int x, int y, int z) const;
-  Hexagon GetHexagon(Bug b) const;
+  Hexagon GetHexagonFromBug(int bug_idx) const;
+  Hexagon GetHexagonFromBug(Bug b) const;
 
   Hexagon Top(Hexagon h) const;
   Hexagon Bottom(Hexagon h) const;
@@ -68,13 +69,10 @@ class HiveBoard {
 
   Player to_play;
 
-  // TODO: make these functions and have hive.cc cache them
+  std::vector<int> last_moved_;
   Player outcome;
   bool is_terminal;
 
-  std::array<int8_t, kBoardSize*kBoardSize*kBoardHeight> observation;
-
-  // TODO: figure out how to normalize for transations and rotations
   int64_t zobrist_hash;
 
  private:
@@ -101,9 +99,9 @@ class HiveBoard {
   void CachePinnedHexagons();
 
   // For applying or undoing moves
-  void PlaceBug(Hexagon* h, Bug b);
-  Bug MoveBug(Hexagon* from, Hexagon* to);
-  Bug RemoveBug(Hexagon* h);
+  void PlaceBug(int h_idx, Bug b);
+  Bug MoveBug(int from_idx, int to_idx);
+  Bug RemoveBug(int h_idx);
 
   void CacheOutcome();
 
@@ -112,11 +110,11 @@ class HiveBoard {
   std::array<std::unordered_set<int>, 2> available_;
   std::unordered_set<int> pinned_;
 
-  std::unordered_set<int> hexagons_;
   std::array<int, 2> bees_;
-  std::stack<int> last_moved_;
 
-  std::array<Hexagon, kBoardSize*kBoardSize*kBoardHeight> board_;
+  std::array<Hexagon, kNumBugs> hexagons_;
+  std::array<Offset, kBoardSize*kBoardSize> board_;
+  std::unordered_set<int> top_hexagons_;
 };
 
 }  // namespace go

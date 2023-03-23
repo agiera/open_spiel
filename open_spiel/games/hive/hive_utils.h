@@ -67,10 +67,20 @@ enum BugType : int8_t {
   kPillbug = 7,
 };
 
-struct Bug {
+class Bug {
+ public:
+  Bug() : order(-1) {}
+  Bug(Player p_, BugType t_, int8_t o_) : player(p_), type(t_), order(o_) {};
+
   Player player;
   BugType type;
   int8_t order;
+
+  int idx = player*kNumBugs/2 + bug_series[type] + order;
+
+  int above;
+  int below;
+  std::array<int, 6> neighbours;
 
   bool visited = false;
   int parent = -1;
@@ -84,11 +94,10 @@ struct Bug {
 
   bool operator!=(const Bug& other) const { return !(*this == other); }
 
-  std::string ToUnicode() const;
   std::string ToString() const;
 };
 
-inline constexpr Bug kEmptyBug = Bug{kWhite, kBee, -1};
+const Bug kEmptyBug = Bug(kWhite, kBee, -1);
 
 std::ostream &operator<<(std::ostream &os, Bug b);
 
@@ -104,24 +113,21 @@ inline int8_t addBoardCoords(int8_t a, int8_t b) {
 
 class Offset {
  public:
-  Offset() : x(0), y(0), z(0) {}
-  Offset(int boardIdx);
-  Offset(int x_, int y_, int z_) :
-    x(mod(x_, kBoardSize)), y(mod(y_, kBoardSize)), z(mod(z_, kBoardHeight)) {}
+  Offset(int x_, int y_);
+  Offset(int idx) : Offset(mod(idx, kBoardSize), idx / kBoardSize) {}
+  Offset() : Offset(0, 0) {}
 
   int8_t x;
   int8_t y;
-  int8_t z;
+  std::array<int, 6> neighbours;
 
-  int index = x + kBoardSize*y + kBoardSize*kBoardSize*z;
-  std::array<Offset, 6> neighbours() const;
+  int idx = x + kBoardSize*y;
+  int bug_idx = -1;
 
   Offset operator+(const Offset& other) const;
   bool operator==(const Offset& other) const;
   bool operator!=(const Offset& other) const;
 };
-
-class Hexagon;
 
 class HiveMove {
  public:
@@ -162,15 +168,10 @@ class Hexagon {
   Hexagon();
 
   Offset loc;
-
   Bug bug;
-
-  int above;
-  int below;
-  std::array<int, 6> neighbours;
 };
 
-static const int starting_hexagon = Offset(13, 13, 0).index;
+static const int starting_hexagon = Offset(13, 13).idx;
 static const Hexagon kEmptyHexagon = Hexagon();
 
 class BugCollection {
@@ -180,17 +181,14 @@ class BugCollection {
   void Reset();
 
   bool HasBug(BugType t) const;
-  absl::optional<Offset> GetBug(Bug b) const;
   int8_t NumBugs(BugType bt) const;
 
-  void UseBug(Hexagon* h, BugType t);
-  void MoveBug(Hexagon* from, Hexagon* to);
+  Bug UseBug(BugType t);
   void ReturnBug(Hexagon* h);
 
  private:
   Player player_;
   std::array<int8_t, 8> bug_counts_;
-  std::array<std::vector<int>, 8> hexagons_;
 };
 
 inline std::ostream& operator<<(std::ostream& stream, const Bug& pt) {

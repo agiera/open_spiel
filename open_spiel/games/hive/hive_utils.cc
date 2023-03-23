@@ -49,43 +49,38 @@ std::string Bug::ToString() const {
 // A hexagon's ith neighbour is the neighbour's (i + 3 mod 5)ths neighbour
 const std::vector<int8_t> neighbour_inverse = {3, 4, 5, 0, 1, 2};
 
-Offset::Offset(int boardIdx) {
-  boardIdx = mod(boardIdx, kBoardSize*kBoardSize*kBoardHeight);
-  z = boardIdx / (kBoardSize*kBoardSize);
-  boardIdx = mod(boardIdx, kBoardSize*kBoardSize);
-  y = boardIdx / kBoardSize;
-  x = mod(boardIdx, kBoardSize);
-  index = x + kBoardSize*y + kBoardSize*kBoardSize*z;
-}
-
 const std::array<Offset, 6> evenRowNeighbors = {
-  Offset(-1, -1, 0), Offset(0, -1, 0), Offset(1, 0, 0),
-  Offset(0, 1, 0), Offset(-1, 1, 0), Offset(-1, 0, 0),
+  Offset(-1, -1), Offset(0, -1), Offset(1, 0),
+  Offset(0, 1), Offset(-1, 1), Offset(-1, 0),
 };
 
 const std::array<Offset, 6> oddRowNeighbors = {
-  Offset(0, -1, 0), Offset(1, -1, 0), Offset(1, 0, 0),
-  Offset(1, 1, 0), Offset(0, 1, 0), Offset(-1, 0, 0),
+  Offset(0, -1), Offset(1, -1), Offset(1, 0),
+  Offset(1, 1), Offset(0, 1), Offset(-1, 0),
 };
 
-std::array<Offset, 6> Offset::neighbours() const {
-  auto f = [this](Offset p) -> Offset { return p + *this; };
-  std::array<Offset, 6> neighbours;
+Offset::Offset(int x, int y) {
+  y = idx / kBoardSize;
+  x = mod(idx, kBoardSize);
+
   if (mod(y, 2) == 0) {
-    neighbours = evenRowNeighbors;
+    for (int i=0; i < 6; i++) {
+      neighbours[i] =
+        mod(idx + evenRowNeighbors[i].idx, kBoardSize*kBoardSize);
+    }
   } else {
-    neighbours = oddRowNeighbors;
+    for (int i=0; i < 6; i++) {
+      neighbours[i] = mod(idx + oddRowNeighbors[i].idx, kBoardSize*kBoardSize);
+    }
   }
-  std::transform(neighbours.begin(), neighbours.end(), neighbours.begin(), f);
-  return neighbours;
 }
 
 Offset Offset::operator+(const Offset& other) const {
-  return Offset(x + other.x, y + other.y, z + other.z);
+  return Offset(x + other.x, y + other.y);
 }
 
 bool Offset::operator==(const Offset& other) const {
-  return x == other.x && y == other.y && z == other.z;
+  return x == other.x && y == other.y;
 }
 
 bool Offset::operator!=(const Offset& other) const {
@@ -108,7 +103,7 @@ std::string BugToString(Bug b) {
 }
 
 std::string OffsetToString(Offset o) {
-  return absl::StrCat("(", o.x, ", ", o.y, ", ", o.z, ")");
+  return absl::StrCat("(", o.x, ", ", o.y, ")");
 }
 
 std::ostream& operator<<(std::ostream& os, Hexagon h) {
@@ -120,13 +115,7 @@ std::string HexagonToString(Hexagon h) {
 }
 
 Hexagon::Hexagon() {
-  loc.x = 0;
-  loc.y = 0;
-  loc.z = 0;
   bug = kEmptyBug;
-  above = -1;
-  below = -1;
-  neighbours.fill(-1);
 }
 
 BugCollection::BugCollection(Player p)
@@ -134,45 +123,23 @@ BugCollection::BugCollection(Player p)
 
 void BugCollection::Reset() {
   bug_counts_ = { 0, 0, 0, 0, 0, 0, 0, 0 };
-  for (std::vector<int> h_vec : hexagons_) {
-    h_vec.clear();
-  }
 }
 
 bool BugCollection::HasBug(BugType t) const {
   return !(bug_counts_[t] == bug_counts[t]);
 }
 
-void BugCollection::UseBug(Hexagon* h, BugType t) {
-  SPIEL_DCHECK_EQ(h->bug.order, -1);
+Bug BugCollection::UseBug(BugType t) {
   SPIEL_DCHECK_NE(bug_counts_[t], bug_counts[t]);
-  hexagons_[t].push_back(h->loc.index);
   Bug bug = Bug{player_, t, bug_counts_[t]};
-  h->bug = bug;
   bug_counts_[t]++;
-}
-
-void BugCollection::MoveBug(Hexagon* from, Hexagon* to) {
-  SPIEL_DCHECK_NE(from->bug.order, -1);
-  SPIEL_DCHECK_EQ(to->bug.order, -1);
-  to->bug = from->bug;
-  from->bug = kEmptyBug;
-  hexagons_[to->bug.type][to->bug.order] = to->loc.index;
+  return bug;
 }
 
 void BugCollection::ReturnBug(Hexagon* h) {
   SPIEL_DCHECK_NE(h->bug.order, -1);
   bug_counts_[h->bug.type]--;
-  hexagons_[h->bug.type].pop_back();
   h->bug = kEmptyBug;
-}
-
-absl::optional<Offset> BugCollection::GetBug(Bug b) const {
-  if (b.order >= bug_counts_[b.type]) {
-    //std::cout << "no bug found in collection\n";
-    return absl::nullopt;
-  }
-  return hexagons_[b.type][b.order];
 }
 
 int8_t BugCollection::NumBugs(BugType bt) const {
