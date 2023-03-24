@@ -98,7 +98,7 @@ int HiveBoard::FindCounterClockwiseMove(Hexagon h, int prev_idx, Bug original) c
 
 std::vector<Hexagon> HiveBoard::FindJumpMoves(Hexagon h) const {
   std::vector<Hexagon> jumps;
-  for (int n_idx : h.loc.neighbours) {
+  for (OffsetIdx n_idx : h.loc.neighbours) {
     Hexagon n = GetHexagon(n_idx);
     if (n.bug != kEmptyBug) {
       // TODO: filter gated
@@ -111,7 +111,7 @@ std::vector<Hexagon> HiveBoard::FindJumpMoves(Hexagon h) const {
 bool HiveBoard::IsSurrounded(OffsetIdx h_idx) const {
   Hexagon h = GetHexagon(h_idx);
   bool res = true;
-  for (int n_idx : h.loc.neighbours) {
+  for (OffsetIdx n_idx : h.loc.neighbours) {
     Hexagon n = GetHexagon(n_idx);
     if (n.bug == kEmptyBug) {
       res = false;
@@ -154,13 +154,13 @@ void HiveBoard::GenerateMoves(Hexagon h, BugType t, std::vector<HiveMove> &moves
 }
 
 void HiveBoard::GenerateBeeMoves(Hexagon h, std::vector<HiveMove> &moves) const {
-  std::unordered_set<int> beeMoves;
+  std::unordered_set<int8_t> beeMoves;
   beeMoves.insert(FindClockwiseMove(h, 0, h.bug));
   beeMoves.insert(FindClockwiseMove(h, 3, h.bug));
   beeMoves.insert(FindCounterClockwiseMove(h, 0, h.bug));
   beeMoves.insert(FindCounterClockwiseMove(h, 3, h.bug));
   beeMoves.erase(-1);
-  for (int i : beeMoves) {
+  for (int8_t i : beeMoves) {
     moves.push_back(HiveMove(h.loc.idx, h.loc.neighbours[i]));
   }
 }
@@ -238,12 +238,12 @@ void HiveBoard::GenerateSpiderMoves(Hexagon h, std::vector<HiveMove> &moves) con
 }
 
 void HiveBoard::GenerateLadybugMoves(Hexagon h, std::vector<HiveMove> &moves) const {
-  std::unordered_set<int> ladybugMoves;
+  std::unordered_set<OffsetIdx> ladybugMoves;
   for (Hexagon n : FindJumpMoves(h)) {
     for (Hexagon o : FindJumpMoves(n)) {
       // Can't jump on self
       if (o.bug == h.bug) { continue; }
-      for (int p_idx : o.loc.neighbours) {
+      for (OffsetIdx p_idx : o.loc.neighbours) {
         Hexagon p = GetHexagon(p_idx);
         if (p.bug == kEmptyBug) {
           ladybugMoves.insert(p_idx);
@@ -251,14 +251,14 @@ void HiveBoard::GenerateLadybugMoves(Hexagon h, std::vector<HiveMove> &moves) co
       }
     }
   }
-  for (int p_idx : ladybugMoves) {
+  for (OffsetIdx p_idx : ladybugMoves) {
     moves.push_back(HiveMove(h.loc.idx, p_idx));
   }
 }
 
 void HiveBoard::GenerateMosquitoMoves(Hexagon h, std::vector<HiveMove> &moves) const {
   std::unordered_set<BugType> mirrors;
-  for (int n_idx : h.loc.neighbours) {
+  for (OffsetIdx n_idx : h.loc.neighbours) {
     Hexagon n = Top(GetHexagon(n_idx));
     if (n.bug != kEmptyBug) {
       mirrors.insert(n.bug.type);
@@ -273,17 +273,17 @@ void HiveBoard::GenerateMosquitoMoves(Hexagon h, std::vector<HiveMove> &moves) c
 
 void HiveBoard::GeneratePillbugMoves(Hexagon h, std::vector<HiveMove> &moves) const {
   GenerateBeeMoves(h, moves);
-  std::vector<int> emptyNeighbours;
-  for (int n_idx : h.loc.neighbours) {
+  std::vector<OffsetIdx> emptyNeighbours;
+  for (OffsetIdx n_idx : h.loc.neighbours) {
     Hexagon n = GetHexagon(n_idx);
     if (n.bug == kEmptyBug) {
       emptyNeighbours.push_back(n.loc.idx);
     }
   }
-  for (int n_idx : h.loc.neighbours) {
+  for (OffsetIdx n_idx : h.loc.neighbours) {
     Hexagon n = GetHexagon(n_idx);
     if (n.bug != kEmptyBug && BugCanMove(n)) {
-      for (int empty : emptyNeighbours) {
+      for (OffsetIdx empty : emptyNeighbours) {
         moves.push_back(HiveMove(n_idx, empty));
       }
     }
@@ -328,8 +328,8 @@ void HiveBoard::Clear() {
 void HiveBoard::InitBoard() {
   // Initialize hexagon neighbours
   // TODO: make sure this is done at compile time
-  for (int8_t x=0; x < kBoardSize; x++) {
-    for (int8_t y=0; y < kBoardSize; y++) {
+  for (uint8_t x=0; x < kBoardSize; x++) {
+    for (uint8_t y=0; y < kBoardSize; y++) {
       Offset o = Offset(x, y);
       board_[o.idx] = o;
     }
@@ -380,7 +380,7 @@ Player HiveBoard::HexagonOwner(Hexagon h) const {
 
   //std::cout << "top.loc=" << OffsetToString(top.loc);
   // Make sure there aren't enemy bugs around hex
-  for (int n_idx : h.loc.neighbours) {
+  for (OffsetIdx n_idx : h.loc.neighbours) {
     Hexagon n = Top(GetHexagon(n_idx));
     //std::cout << "n.loc=" << OffsetToString(n.loc);
     //std::cout << "n.bug=" << BugToString(n.bug) << "\n";
@@ -407,7 +407,7 @@ void HiveBoard::CacheHexagonOwner(Hexagon h) {
 
 void HiveBoard::CacheHexagonArea(Hexagon h) {
   CacheHexagonOwner(h);
-  for (int idx : h.loc.neighbours) {
+  for (OffsetIdx idx : h.loc.neighbours) {
     CacheHexagonOwner(GetHexagon(idx));
   }
 
@@ -445,7 +445,7 @@ void HiveBoard::CachePinnedHexagons() {
     curNode->bug.low = curNode->bug.num;
     curNode->bug.children = 0;
 
-    for (int n_idx : curNode->loc.neighbours) {
+    for (OffsetIdx n_idx : curNode->loc.neighbours) {
       Hexagon* n = &hexagons_[board_[n_idx].bug_idx];
       if (n->bug == kEmptyBug) { continue; }
 
@@ -464,7 +464,7 @@ void HiveBoard::CachePinnedHexagons() {
   while(!postorderStack.empty()) {
     Hexagon* curNode = postorderStack.top();
     postorderStack.pop();
-    for (int n_idx : curNode->loc.neighbours) {
+    for (OffsetIdx n_idx : curNode->loc.neighbours) {
       Hexagon* n = &hexagons_[board_[n_idx].bug_idx];
       if (n->bug == kEmptyBug) { continue; }
 
@@ -577,7 +577,7 @@ std::vector<HiveMove> HiveBoard::LegalMoves() const {
   // Player can only move bugs after the bee has been placed
   if (bees_[to_play] != -1) {
     //std::cout << "found bee\n";
-    for (int bug_idx : top_hexagons_) {
+    for (BugIdx bug_idx : top_hexagons_) {
       Hexagon h = hexagons_[bug_idx];
       if (h.bug.player == to_play && BugCanMove(h)) {
         SPIEL_DCHECK_NE(h.bug.order, -1);
@@ -586,7 +586,7 @@ std::vector<HiveMove> HiveBoard::LegalMoves() const {
     }
   // Player must place bee by the third move
   } else if (hexagons_.size() >= 4) {
-    for (int idx : available_[to_play]) {
+    for (BugIdx idx : available_[to_play]) {
       legal_moves.push_back(HiveMove(kBee, idx));
     }
     return legal_moves;
@@ -594,7 +594,7 @@ std::vector<HiveMove> HiveBoard::LegalMoves() const {
 
 
   // Player may always place bugs
-  for (int idx : available_[to_play]) {
+  for (BugIdx idx : available_[to_play]) {
     //std::cout << "idx=" << idx << "\n";
     //std::cout << "available.bug=" << BugToString(GetHexagon(idx).bug) << "\n";
     for (int8_t bug=0; bug < kNumBugTypes; bug++) {

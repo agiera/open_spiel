@@ -134,7 +134,7 @@ HiveAction HiveState::HiveMoveToHiveAction(HiveMove move) const {
   //std::cout << "from=" << BugToString(from) << "\n";
 
   Bug around = Bug{kWhite, kBee, 0};
-  int8_t neighbour_idx = 0;
+  uint8_t neighbour_idx = 0;
   Hexagon to = board_.GetHexagon(move.to);
   //std::cout << "to=" << HexagonToString(to) << "\n";
   for (int8_t i=0; i < 6; i++) {
@@ -169,18 +169,12 @@ HiveAction HiveState::ActionToHiveAction(Action action) const {
   if (action == kNumActions - 1) {
     return HiveAction{true};
   }
-  int8_t from_order = min_bits / 18;
-  int8_t around_order = (min_bits % 18) / 6;
-  int8_t neighbour = min_bits % 6;
 
-  Player from_player = (action >> 0) & 0b1;
-  BugType from_type = (BugType) ((action >> 1) & 0b111);
-  Bug from = Bug{from_player, from_type, from_order};
-  //std::cout << "from=" << BugToString(from) << "\n";
-
-  Player around_player = (action >> 4) & 0b1;
-  BugType around_type = (BugType) ((action >> 5) & 0b111);
-  Bug around = Bug{around_player, around_type, around_order};
+  uint8_t neighbour = action / (kNumBugs*kNumBugs);
+  int remainder = action % (kNumBugs*kNumBugs);
+  Bug around = Bug(remainder / kNumBugs);
+  remainder = remainder % kNumBugs;
+  Bug from = Bug(remainder);
 
   // This is a first move
   if (board_.NumBugs() < 2) {
@@ -217,16 +211,9 @@ Action HiveState::HiveActionToAction(HiveAction action) const {
   SPIEL_CHECK_LT((int) action.around.order, 6);
   SPIEL_CHECK_GE((int) action.neighbour, 0);
   SPIEL_CHECK_LT((int) action.neighbour, 6);
-  Action res = action.from.order*18 + action.around.order*6 + action.neighbour;
-  res <<= 8;
 
-  res |= action.from.player << 0;
-  res |= action.from.type << 1;
-
-  res |= action.around.player << 4;
-  res |= action.around.type << 5;
-
-  return res;
+  return action.from.idx + action.around.idx*kNumBugs +
+         action.neighbour*kNumBugs*kNumBugs;
 }
 
 void HiveState::DoApplyAction(Action move) {

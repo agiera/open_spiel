@@ -62,7 +62,7 @@ struct HiveAction {
   bool pass;
   Bug from;
   Bug around;
-  int8_t neighbour;
+  uint8_t neighbour;
 
   // optional parameters
   // Neccessary for printing action

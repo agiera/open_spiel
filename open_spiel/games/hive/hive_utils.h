@@ -47,7 +47,7 @@ inline constexpr int kNumHexagons = kBoardSize*kBoardSize*kBoardHeight;
 // 14 bugs per side
 inline constexpr int kNumBugTypes = 8;
 // Each bug can be one of two colors and can be placed first, second, or third
-static const int kNumBugs = 2*3*kNumBugTypes;
+static const int kNumBugs = 2*(1 + 2 + 3 + 3 + 2 + 1 + 1 + 1);
 // Num bugs of each type
 inline constexpr std::array<int8_t, 8> bug_counts = { 1, 2, 3, 3, 2, 1, 1, 1 };
 // bug_series[i] is the number of bugs with type < i
@@ -76,6 +76,7 @@ enum BugType : int8_t {
 class Bug {
  public:
   Bug() : order(-1) {}
+  Bug(BugIdx b);
   Bug(Player p_, BugType t_, int8_t o_) : player(p_), type(t_), order(o_) {};
 
   Player player;

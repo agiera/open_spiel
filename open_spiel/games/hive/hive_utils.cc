@@ -17,6 +17,24 @@
 namespace open_spiel {
 namespace hive {
 
+Bug::Bug(BugIdx b) {
+  player = b / (kNumBugs / 2);
+  BugIdx d = b - player * (kNumBugs / 2);
+  uint8_t t =  0;
+  while (t < kNumBugTypes - 1 && d >= bug_series[t + 1]) t++;
+  type = (BugType) t;
+  order = d - bug_series[t];
+
+  SPIEL_DCHECK_GE(player, 0);
+  SPIEL_DCHECK_LE(player, 1);
+  SPIEL_DCHECK_GE(type, 0);
+  SPIEL_DCHECK_LE(type, 7);
+  SPIEL_DCHECK_GE(order, -1);
+  SPIEL_DCHECK_LE(order, 2);
+
+  idx = player*kNumBugs/2 + bug_series[type] + order;
+}
+
 // TODO
 absl::optional<BugType> BugTypeFromChar(char c) {
   return BugType::kBee;
