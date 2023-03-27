@@ -23,6 +23,8 @@
 namespace open_spiel {
 namespace hive {
 
+static const long mod(int8_t a, int8_t b) { return (a%b+b)%b; }
+static const long mod(int16_t a, int16_t b) { return (a%b+b)%b; }
 static const long mod(int a, int b) { return (a%b+b)%b; }
 
 inline constexpr Player kWhite = 0;
@@ -75,18 +77,18 @@ enum BugType : int8_t {
 
 class Bug {
  public:
-  Bug() : order(-1) {}
+  Bug(Player p_, BugType t_, int8_t o_);
+  Bug() : Bug((Player) 0, (BugType) 0, -1) {};
   Bug(BugIdx b);
-  Bug(Player p_, BugType t_, int8_t o_) : player(p_), type(t_), order(o_) {};
 
   Player player;
   BugType type;
   int8_t order;
 
-  BugIdx idx = player*kNumBugs/2 + bug_series[type] + order;
+  BugIdx idx;
 
-  BugIdx above;
-  BugIdx below;
+  BugIdx above = -1;
+  BugIdx below = -1;
   std::array<BugIdx, 6> neighbours;
 
   bool visited = false;
@@ -104,7 +106,7 @@ class Bug {
   std::string ToString() const;
 };
 
-const Bug kEmptyBug = Bug(kWhite, kBee, -1);
+const Bug kEmptyBug = Bug();
 
 std::ostream &operator<<(std::ostream &os, Bug b);
 
@@ -120,15 +122,15 @@ inline int8_t addBoardCoords(int8_t a, int8_t b) {
 
 class Offset {
  public:
-  Offset(uint8_t x_, uint8_t y_);
-  Offset(OffsetIdx idx) : Offset(mod(idx, kBoardSize), idx / kBoardSize) {}
-  Offset() : Offset(0, 0) {}
+  Offset(int8_t x_, int8_t y_);
+  Offset(OffsetIdx idx) : Offset(mod(idx, kBoardSize), idx / kBoardSize) {};
+  Offset() : x(0), y(0), idx(0) {};
 
-  uint8_t x;
-  uint8_t y;
+  int8_t x;
+  int8_t y;
   std::array<OffsetIdx, 6> neighbours;
 
-  OffsetIdx idx = x + kBoardSize*y;
+  OffsetIdx idx;
   BugIdx bug_idx = -1;
 
   Offset operator+(const Offset& other) const;

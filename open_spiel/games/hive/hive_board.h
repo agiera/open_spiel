@@ -47,12 +47,12 @@ class HiveBoard {
 
   Hexagon Top(Hexagon h) const;
   Hexagon Bottom(Hexagon h) const;
+  int Height(Hexagon h) const;
 
-  bool IsSurrounded(OffsetIdx h_idx) const;
+  bool IsSurrounded(BugIdx h_idx) const;
 
   void GenerateMoves(Hexagon h, BugType t, std::vector<HiveMove> &moves) const;
 
-  int NumBugs() const;
   int NumBugs(Player p, BugType bt) const;
 
   std::vector<HiveMove> LegalMoves() const;
@@ -69,8 +69,8 @@ class HiveBoard {
 
  private:
   // For generating legal moves
-  int FindClockwiseMove(Hexagon h, int prev_idx, Bug original) const;
-  int FindCounterClockwiseMove(Hexagon h, int prev_idx, Bug original) const;
+  int FindClockwiseMove(Offset o, int prev_idx, Bug original) const;
+  int FindCounterClockwiseMove(Offset o, int prev_idx, Bug original) const;
   int WalkThree(Hexagon h, int i, bool clockwise) const;
   std::vector<Hexagon> FindJumpMoves(Hexagon h) const;
 
@@ -84,9 +84,9 @@ class HiveBoard {
   void GeneratePillbugMoves(Hexagon h, std::vector<HiveMove> &moves) const;
 
   bool BugCanMove(Hexagon h) const;
-  Player HexagonOwner(Hexagon h) const;
-  void CacheHexagonOwner(Hexagon h);
-  void CacheHexagonArea(Hexagon h);
+  Player HexagonOwner(OffsetIdx idx) const;
+  void CacheHexagonOwner(OffsetIdx idx);
+  void CacheHexagonArea(OffsetIdx idx);
 
   void CachePinnedHexagons();
 
@@ -99,7 +99,7 @@ class HiveBoard {
 
   std::array<BugCollection, 2> bug_collections_;
 
-  std::array<std::unordered_set<BugIdx>, 2> available_;
+  std::array<std::unordered_set<OffsetIdx>, 2> available_;
   std::unordered_set<BugIdx> pinned_;
 
   std::array<BugIdx, 2> bees_;

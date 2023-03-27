@@ -17,7 +17,22 @@
 namespace open_spiel {
 namespace hive {
 
+Bug::Bug(Player p_, BugType t_, int8_t o_) : player(p_), type(t_), order(o_) {
+  SPIEL_DCHECK_GE(player, 0);
+  SPIEL_DCHECK_LE(player, 1);
+  SPIEL_DCHECK_GE(type, 0);
+  SPIEL_DCHECK_LE(type, 7);
+  SPIEL_DCHECK_GE(order, -1);
+  SPIEL_DCHECK_LE(order, 2);
+
+  idx = player*kNumBugs/2 + bug_series[type] + order;
+  std::fill(neighbours.begin(), neighbours.end(), -1);
+}
+
 Bug::Bug(BugIdx b) {
+  SPIEL_DCHECK_GE(b, 0);
+  SPIEL_DCHECK_LE(b, 27);
+
   player = b / (kNumBugs / 2);
   BugIdx d = b - player * (kNumBugs / 2);
   uint8_t t =  0;
@@ -29,10 +44,11 @@ Bug::Bug(BugIdx b) {
   SPIEL_DCHECK_LE(player, 1);
   SPIEL_DCHECK_GE(type, 0);
   SPIEL_DCHECK_LE(type, 7);
-  SPIEL_DCHECK_GE(order, -1);
-  SPIEL_DCHECK_LE(order, 2);
+  SPIEL_DCHECK_GE(order, 0);
+  SPIEL_DCHECK_LE(order, 3);
 
-  idx = player*kNumBugs/2 + bug_series[type] + order;
+  idx = b;
+  std::fill(neighbours.begin(), neighbours.end(), -1);
 }
 
 // TODO
@@ -48,7 +64,7 @@ std::string Bug::ToString() const {
   SPIEL_DCHECK_GE(order, -1);
   SPIEL_DCHECK_LE(order, 2);
 
-  if (order == -1) { return "kEmptyBug"; }
+  if (order == (uint8_t) -1) { return "kEmptyBug"; }
 
   std::string res;
   res += kPlayerChars[player];
@@ -67,30 +83,39 @@ std::string Bug::ToString() const {
 // A hexagon's ith neighbour is the neighbour's (i + 3 mod 5)ths neighbour
 const std::vector<int8_t> neighbour_inverse = {3, 4, 5, 0, 1, 2};
 
-const std::array<Offset, 6> evenRowNeighbors = {
+const std::array<Offset, 6> evenRowNeighbours = {
   Offset(-1, -1), Offset(0, -1), Offset(1, 0),
   Offset(0, 1), Offset(-1, 1), Offset(-1, 0),
 };
 
-const std::array<Offset, 6> oddRowNeighbors = {
+const std::array<Offset, 6> oddRowNeighbours = {
   Offset(0, -1), Offset(1, -1), Offset(1, 0),
   Offset(1, 1), Offset(0, 1), Offset(-1, 0),
 };
 
-Offset::Offset(uint8_t x, uint8_t y) {
-  y = idx / kBoardSize;
-  x = mod(idx, kBoardSize);
+Offset::Offset(int8_t x_, int8_t y_) {
+  this->x = mod(x_, (int8_t) kBoardSize);
+  this->y = mod(y_, (int8_t) kBoardSize);
+  this->idx = this->x + kBoardSize*this->y;
 
-  if (mod(y, 2) == 0) {
+  SPIEL_DCHECK_GE(this->x, 0);
+  SPIEL_DCHECK_LT(this->x, kBoardSize);
+  SPIEL_DCHECK_GE(this->y, 0);
+  SPIEL_DCHECK_LT(this->y, kBoardSize);
+
+  if (mod(this->y, (int8_t) 2) == 0) {
     for (int i=0; i < 6; i++) {
-      neighbours[i] =
-        mod(idx + evenRowNeighbors[i].idx, kBoardSize*kBoardSize);
+      neighbours[i] = mod(this->x + evenRowNeighbours[i].x, kBoardSize) +
+        mod(this->y + evenRowNeighbours[i].y, kBoardSize)*kBoardSize;
     }
   } else {
     for (int i=0; i < 6; i++) {
-      neighbours[i] = mod(idx + oddRowNeighbors[i].idx, kBoardSize*kBoardSize);
+      neighbours[i] = mod(this->x + oddRowNeighbours[i].x, kBoardSize) +
+        mod(this->y + oddRowNeighbours[i].y, kBoardSize)*kBoardSize;
     }
   }
+
+  bug_idx = -1;
 }
 
 Offset Offset::operator+(const Offset& other) const {
@@ -106,10 +131,10 @@ bool Offset::operator!=(const Offset& other) const {
 }
 
 Offset neighbourOffset(Offset o, uint8_t i) {
-  if (mod(o.y, 2) == 0) {
-    return o + evenRowNeighbors[i];
+  if (mod(o.y, (int8_t) 2) == 0) {
+    return o + evenRowNeighbours[i];
   }
-  return o + oddRowNeighbors[i];
+  return o + oddRowNeighbours[i];
 }
 
 std::ostream& operator<<(std::ostream& os, Bug b) {
@@ -133,7 +158,8 @@ std::string HexagonToString(Hexagon h) {
 }
 
 Hexagon::Hexagon() {
-  bug = kEmptyBug;
+  loc = Offset(0, 0);
+  bug = Bug();
 }
 
 BugCollection::BugCollection(Player p)

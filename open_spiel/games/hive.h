@@ -42,8 +42,8 @@ inline constexpr int kNumPlayers = 2;
 static const int kNumCellStates = 2*2*kNumBugTypes + 1;
 static const int kNumberStates = 3 * (1 + kNumBugs * 2) * kBoardSize * kBoardSize * kBoardHeight;
 // An action can be a pass or a mapping from one bug to another bug's neighbouring space
-// 2^9 * 3^3 + 1
-// Totalling 13825 actions
+// 1 + 28 * 28 * 6
+// Totalling 4705 actions
 static const int kNumActions = 1 + kNumBugs * kNumBugs * 6;
 // TODO: lower number of actions
 // E.G. How do you enumerate the at most 27 + 26*2 + 4 places a bug can go
@@ -108,7 +108,7 @@ class HiveState : public State {
 
  private:
   HiveMove HiveActionToHiveMove(HiveAction action) const;
-  HiveAction HiveMoveToHiveAction(HiveMove move) const;
+  std::vector<HiveAction> HiveMoveToHiveActions(HiveMove move) const;
 
   HiveAction ActionToHiveAction(Action action) const;
   Action HiveActionToAction(HiveAction action) const;

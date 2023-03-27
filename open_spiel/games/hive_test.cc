@@ -21,10 +21,11 @@ namespace {
 
 namespace testing = open_spiel::testing;
 
-void BasicTicTacToeTests() {
+void BasicHiveTests() {
   testing::LoadGameTest("hive");
   testing::NoChanceOutcomesTest(*LoadGame("hive"));
-  testing::RandomSimTest(*LoadGame("hive"), 100);
+  testing::RandomSimTest(*LoadGame("hive"), 10);
+  testing::RandomSimTestWithUndo(*LoadGame("hive"), 10);
 }
 
 }  // namespace
@@ -32,5 +33,5 @@ void BasicTicTacToeTests() {
 }  // namespace open_spiel
 
 int main(int argc, char** argv) {
-  open_spiel::hive::BasicTicTacToeTests();
+  open_spiel::hive::BasicHiveTests();
 }
