@@ -92,7 +92,7 @@ class Bug {
   std::array<BugIdx, 6> neighbours;
 
   bool visited = false;
-  int parent = -1;
+  BugIdx parent = -1;
   int num;
   int low;
   int children;

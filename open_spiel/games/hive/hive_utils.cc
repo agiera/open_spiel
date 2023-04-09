@@ -30,6 +30,13 @@ Bug::Bug(Player p_, BugType t_, int8_t o_) : player(p_), type(t_), order(o_) {
 }
 
 Bug::Bug(BugIdx b) {
+  if (b == (BugIdx) -1) {
+    player = 0;
+    type = (BugType) 0;
+    order = (int8_t) -1;
+    return;
+  }
+
   SPIEL_DCHECK_GE(b, 0);
   SPIEL_DCHECK_LE(b, 27);
 

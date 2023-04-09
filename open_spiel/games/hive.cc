@@ -107,8 +107,6 @@ HiveMove HiveState::HiveActionToHiveMove(HiveAction action) const {
   if (from.bug == kEmptyBug) {
     if (actions_history_.size() == 0) {
       return HiveMove(action.from.type, starting_hexagon);
-    } else if (actions_history_.size() == 1) {
-      return HiveMove(action.from.type, starting_hexagon + 1);
     }
     return HiveMove(action.from.type, to.idx);
   }
@@ -140,7 +138,7 @@ std::vector<HiveAction> HiveState::HiveMoveToHiveActions(HiveMove move) const {
   Bug around = Bug{kWhite, kBee, 0};
   uint8_t neighbour_idx = 0;
 
-  if (actions_history_.size() < 2) {
+  if (actions_history_.size() < 1) {
     hive_actions.push_back({false, from, around, neighbour_idx, true});
     return hive_actions;
   }
@@ -161,8 +159,10 @@ std::vector<HiveAction> HiveState::HiveMoveToHiveActions(HiveMove move) const {
     if (neighbour.bug != kEmptyBug) {
       // Don't use self for reference
       if (neighbour.bug == from) {
+        //std::cout << "from.below=" << (int) from.below << "\n";
         if (from.below != (uint8_t) -1) {
           around = Bug(from.below);
+          neighbour_idx = mod(i - 3, 6);
           hive_actions.push_back({false, from, around, neighbour_idx, false, jump, on});
           continue;
         } else {
@@ -192,18 +192,16 @@ HiveAction HiveState::ActionToHiveAction(Action action) const {
   Bug from = Bug(remainder);
 
   // This is a first move
-  if (actions_history_.size() < 2) {
-    //std::cout << "first two moves\n";
+  if (actions_history_.size() < 1) {
     return HiveAction{false, from, around, neighbour, true, false};
   }
-  //std::cout << "not first two moves\n";
 
   // Add optional attributes for string representation
   Hexagon around_hex = board_.GetHexagonFromBug(around);
   bool jump = false;
   Bug on = Bug{kWhite, kBee, 0};
-  //std::cout << "around_hex.bug=" << BugToString(around_hex.bug) << "\n";
   if (around_hex.bug != kEmptyBug) {
+    //std::cout << "around_hex.bug=" << BugToString(around_hex.bug) << "\n";
     Hexagon to = board_.GetHexagon(around_hex.loc.neighbours[neighbour]);
     //std::cout << "to.bug=" << BugToString(to.bug) << "\n";
     jump = to.bug != kEmptyBug && to.bug != from;
@@ -262,6 +260,7 @@ void HiveState::UndoAction(Player player, Action move) {
 }
 
 std::vector<Action> HiveState::LegalActions() const {
+  //std::cout << "\nLegalActions\n";
   std::unordered_set<Action> action_set;
   if (cached_legal_actions_.empty()) {
     for (HiveMove hive_move : board_.LegalMoves()) {
