@@ -60,48 +60,31 @@ int HiveBoard::Height(Hexagon h) const {
   return height;
 }
 
-int HiveBoard::FindClockwiseMove(Offset o, int prev_idx, Bug original) const {
-  int j = mod(prev_idx, 6);
+std::unordered_set<OffsetIdx> HiveBoard::FindCrawlMoves(Offset o, Bug original) const {
+  std::unordered_set<OffsetIdx> moves;
   //std::cout << "j=" << j << "\n";
   //std::cout << "mod(j, 6)=" << hive::mod(j, 6) << "\n";
   //std::cout << "mod(j+1, 6)=" << hive::mod(j+1, 6) << "\n";
   Hexagon n1;
-  Hexagon n2 = GetHexagon(o.neighbours[mod(j-1, 6)]);
-  Hexagon n3 = GetHexagon(o.neighbours[j]);
+  Hexagon n2 = GetHexagon(o.neighbours[5]);
+  Hexagon n3 = GetHexagon(o.neighbours[0]);
   for (int i=0; i < 6; i++) {
     //std::cout << "h.neighbours[j].loc=" << OffsetToString(n2.loc) << "\n";
-    j = mod(prev_idx + i, 6);
     n1 = n2;
     n2 = n3;
-    n3 = GetHexagon(o.neighbours[mod(j+1, 6)]);
+    n3 = GetHexagon(o.neighbours[mod(i+1, 6)]);
     // A bug can go through itself
     // Specifically there's one special case for the spider
-    if ((n1.bug != kEmptyBug && n1.bug != original) &&
-        (n2.bug == kEmptyBug || n2.bug == original) &&
-        (n3.bug == kEmptyBug || n3.bug == original)) {
-      return j;
+    if (((n1.bug != kEmptyBug && n1.bug != original) &&
+         (n2.bug == kEmptyBug || n2.bug == original) &&
+         (n3.bug == kEmptyBug || n3.bug == original)) ||
+        ((n1.bug == kEmptyBug || n1.bug == original) &&
+         (n2.bug == kEmptyBug || n2.bug == original) &&
+         (n3.bug != kEmptyBug && n3.bug != original))) {
+      moves.insert(o.neighbours[i]);
     }
   }
-  return -1;
-}
-
-int HiveBoard::FindCounterClockwiseMove(Offset o, int prev_idx, Bug original) const {
-  int j = mod(prev_idx, 6);
-  Hexagon n1;
-  Hexagon n2 = GetHexagon(o.neighbours[mod(j-1, 6)]);
-  Hexagon n3 = GetHexagon(o.neighbours[j]);
-  for (int i=0; i < 6; i++) {
-    j = mod(prev_idx + i, 6);
-    n1 = n2;
-    n2 = n3;
-    n3 = GetHexagon(o.neighbours[mod(j+1, 6)]);
-    if ((n1.bug == kEmptyBug || n1.bug == original) &&
-        (n2.bug == kEmptyBug || n2.bug == original) &&
-        (n3.bug != kEmptyBug && n3.bug != original)) {
-      return j;
-    }
-  }
-  return -1;
+  return moves;
 }
 
 std::vector<Hexagon> HiveBoard::FindJumpMoves(Hexagon h) const {
@@ -171,20 +154,13 @@ void HiveBoard::GenerateMoves(Hexagon h, BugType t, std::vector<HiveMove> &moves
 }
 
 void HiveBoard::GenerateBeeMoves(Hexagon h, std::vector<HiveMove> &moves) const {
-  std::unordered_set<int8_t> beeMoves;
-  beeMoves.insert(FindClockwiseMove(h.loc, 0, h.bug));
-  beeMoves.insert(FindClockwiseMove(h.loc, 3, h.bug));
-  beeMoves.insert(FindCounterClockwiseMove(h.loc, 0, h.bug));
-  beeMoves.insert(FindCounterClockwiseMove(h.loc, 3, h.bug));
-  beeMoves.erase(-1);
-  for (int8_t i : beeMoves) {
-    moves.push_back(HiveMove(h.loc.idx, h.loc.neighbours[i]));
+  for (OffsetIdx idx : FindCrawlMoves(h.loc, h.bug)) {
+    moves.push_back(HiveMove(h.loc.idx, idx));
   }
 }
 
 // TODO: fix bugs can be on top
 void HiveBoard::GenerateBeetleMoves(Hexagon h, std::vector<HiveMove> &moves) const {
-  GenerateBeeMoves(h, moves);
   for (Hexagon n : FindJumpMoves(h)) {
     moves.push_back(HiveMove(h.loc.idx, n.loc.idx));
   }
@@ -196,25 +172,27 @@ void HiveBoard::GenerateBeetleMoves(Hexagon h, std::vector<HiveMove> &moves) con
         moves.push_back(HiveMove(h.loc.idx, n_idx));
       }
     }
+  } else {
+    GenerateBeeMoves(h, moves);
   }
 }
 
 void HiveBoard::GenerateAntMoves(Hexagon h, std::vector<HiveMove> &moves) const {
-  std::unordered_set<int> antMoves;
+  std::unordered_set<OffsetIdx> antMoves;
+  std::unordered_set<OffsetIdx> horizon(FindCrawlMoves(h.loc, h.bug));
+  while (!horizon.empty()) {
+    antMoves.insert(horizon.begin(), horizon.end());
+    std::unordered_set<OffsetIdx> new_horizon;
+    for (OffsetIdx o : horizon) {
+      new_horizon.merge(FindCrawlMoves(board_[o], h.bug));
+    }
+    for (OffsetIdx o : antMoves) {
+      new_horizon.erase(o);
+    }
+    horizon = new_horizon;
+  }
 
-  int i = FindClockwiseMove(h.loc, 0, h.bug);
-  if (i == -1) return;
-  int init_idx = i;
-  Offset next = board_[h.loc.neighbours[i]];
-  int root = next.idx;
-  do {
-    antMoves.insert(next.idx);
-
-    i = FindClockwiseMove(next, i, h.bug);
-    next = board_[next.neighbours[i]];
-  } while (next.idx != root || i != init_idx);
-
-  // Ants aren't allows to move where they already are
+  // Ants aren't allowed to move where they already are
   antMoves.erase(h.loc.idx);
 
   for (int p : antMoves) {
@@ -236,36 +214,19 @@ void HiveBoard::GenerateGrasshopperMoves(Hexagon h, std::vector<HiveMove> &moves
   }
 }
 
-OffsetIdx HiveBoard::WalkThree(Hexagon h, int i, bool clockwise) const {
-  int j;
-  Offset o = h.loc;
-  if (clockwise) {
-    j = FindClockwiseMove(o, i, h.bug);
-    if (j == -1) { return (OffsetIdx) -1; }
-    o = board_[o.neighbours[j]];
-    j = FindClockwiseMove(o, j, h.bug);
-    o = board_[o.neighbours[j]];
-    j = FindClockwiseMove(o, j, h.bug);
-  } else {
-    j = FindCounterClockwiseMove(o, i, h.bug);
-    if (j == -1) { return (OffsetIdx) -1; }
-    o = board_[o.neighbours[j]];
-    j = FindCounterClockwiseMove(o, j, h.bug);
-    o = board_[o.neighbours[j]];
-    j = FindCounterClockwiseMove(o, j, h.bug);
-  }
-  return o.neighbours[j];
-}
-
 void HiveBoard::GenerateSpiderMoves(Hexagon h, std::vector<HiveMove> &moves) const {
-  std::unordered_set<OffsetIdx> spiderMoves;
-  spiderMoves.insert(WalkThree(h, 0, true));
-  spiderMoves.insert(WalkThree(h, 3, true));
-  spiderMoves.insert(WalkThree(h, 0, false));
-  spiderMoves.insert(WalkThree(h, 3, false));
-  spiderMoves.erase((OffsetIdx) -1);
-  for (OffsetIdx p : spiderMoves) {
-    moves.push_back(HiveMove(h.loc.idx, p));
+  for (OffsetIdx o : FindCrawlMoves(h.loc, h.bug)) {
+    for (OffsetIdx p : FindCrawlMoves(board_[o], h.bug)) {
+      // Not allowed to back track
+      if (p != h.loc.idx) {
+        for (OffsetIdx q : FindCrawlMoves(board_[p], h.bug)) {
+          // Not allowed to land at the starting position
+          if (q != o && q != h.loc.idx) {
+            moves.push_back(HiveMove(h.loc.idx, q));
+          }
+        }
+      }
+    }
   }
 }
 
@@ -300,9 +261,15 @@ void HiveBoard::GenerateMosquitoMoves(Hexagon h, std::vector<HiveMove> &moves) c
   // If Mosquito can't move then it can only move other bugs via the Pillbug
   // ability
   if (!BugCanMove(h)) {
-    if (mirrors.count(kPillbug)) {
+    if (h.bug.below == (BugIdx) -1 && mirrors.count(kPillbug)) {
       GeneratePillbugMoves(h, moves);
     }
+    return;
+  }
+
+  // While Mosquito is on top it can only do beetle moves
+  if (h.bug.below != (BugIdx) -1) {
+    GenerateBeetleMoves(h, moves);
     return;
   }
 
@@ -318,6 +285,8 @@ void HiveBoard::GeneratePillbugMoves(Hexagon h, std::vector<HiveMove> &moves) co
     GenerateBeeMoves(h, moves);
   }
 
+  if (last_moved_.back() == h.bug.idx) return;
+
   std::vector<OffsetIdx> emptyNeighbours;
   for (OffsetIdx n_idx : h.loc.neighbours) {
     if (board_[n_idx].bug_idx == (uint8_t) -1) {
@@ -327,7 +296,8 @@ void HiveBoard::GeneratePillbugMoves(Hexagon h, std::vector<HiveMove> &moves) co
 
   for (OffsetIdx n_idx : h.loc.neighbours) {
     Hexagon n = GetHexagon(n_idx);
-    if (n.bug != kEmptyBug && BugCanMove(n)) {
+    // Pillbug can't move bugs on top of other bugs
+    if (n.bug != kEmptyBug && BugCanMove(n) && n.bug.below == (BugIdx) -1) {
       for (OffsetIdx empty : emptyNeighbours) {
         moves.push_back(HiveMove(n_idx, empty));
       }

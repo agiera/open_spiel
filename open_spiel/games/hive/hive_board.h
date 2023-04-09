@@ -69,9 +69,7 @@ class HiveBoard {
 
  private:
   // For generating legal moves
-  int FindClockwiseMove(Offset o, int prev_idx, Bug original) const;
-  int FindCounterClockwiseMove(Offset o, int prev_idx, Bug original) const;
-  OffsetIdx WalkThree(Hexagon h, int i, bool clockwise) const;
+  std::unordered_set<OffsetIdx> FindCrawlMoves(Offset o, Bug original) const;
   std::vector<Hexagon> FindJumpMoves(Hexagon h) const;
 
   void GenerateBeeMoves(Hexagon h, std::vector<HiveMove> &moves) const;
