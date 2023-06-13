@@ -347,6 +347,12 @@ void learner(const open_spiel::Game& game, const AlphaZeroConfig& config,
     int num_states = 0;
     int num_trajectories = 0;
     while (!stop->StopRequested() && num_states < learn_rate) {
+      if (config.learn_only) {
+        std::string buffer_name = "/games/replay_buffer_" + std::to_string(step) + ".data";
+        replay_buffer.LoadBuffer(config.path + buffer_name);
+        break;
+      }
+
       absl::optional<Trajectory> trajectory = trajectory_queue->Pop();
       if (trajectory) {
         num_trajectories += 1;
@@ -374,6 +380,7 @@ void learner(const open_spiel::Game& game, const AlphaZeroConfig& config,
           value_predictions[stage].Add(abs(s.value));
         }
       }
+
     }
     absl::Time now = absl::Now();
     double seconds = absl::ToDoubleSeconds(now - last);
@@ -394,7 +401,13 @@ void learner(const open_spiel::Game& game, const AlphaZeroConfig& config,
 
     last = now;
 
-    replay_buffer.SaveBuffer(config.path + "/replay_buffer.data");
+    if (config.save_self_play) {
+      std::string buffer_name = "/games/replay_buffer_" + std::to_string(step) + ".data";
+      replay_buffer.SaveBuffer(config.path + buffer_name);
+      continue;
+    } else if (!config.learn_only) {
+      replay_buffer.SaveBuffer(config.path + "/replay_buffer.data");
+    }
 
     VPNetModel::LossInfo losses;
     {  // Extra scope to return the device for use for inference asap.
@@ -506,6 +519,9 @@ bool AlphaZero(AlphaZeroConfig config, StopToken* stop, bool resuming) {
     open_spiel::SpielFatalError("Game must have sequential turns.");
 
   file::Mkdirs(config.path);
+  if (config.save_self_play) {
+    file::Mkdirs(config.path + "/games");
+  }
   if (!file::IsDirectory(config.path)) {
     std::cerr << config.path << " is not a directory." << std::endl;
     return false;

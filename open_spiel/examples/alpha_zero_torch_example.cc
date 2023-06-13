@@ -67,6 +67,11 @@ ABSL_FLAG(bool, explicit_learning, false,
           "requests), or 'true' (while learning, the first device does "
           "not take on inference requests) which can only be used when "
           "multiple devices are available).");
+ABSL_FLAG(bool, save_self_play, false,
+          "Persists self play data in path/games/.");
+ABSL_FLAG(bool, learn_only, false,
+          "Trains the model using replay buffers stored in path/games "
+          "without generating new games via self play.");
 ABSL_FLAG(bool, verbose, false, "Show the MCTS stats of possible moves.");
 ABSL_FLAG(int, actors, 4, "How many actors to run.");
 ABSL_FLAG(int, evaluators, 2, "How many evaluators to run.");
@@ -130,6 +135,8 @@ int main(int argc, char** argv) {
     config.nn_depth = absl::GetFlag(FLAGS_nn_depth);
     config.devices = absl::GetFlag(FLAGS_devices);
     config.explicit_learning = absl::GetFlag(FLAGS_explicit_learning);
+    config.save_self_play = absl::GetFlag(FLAGS_save_self_play);
+    config.learn_only = absl::GetFlag(FLAGS_learn_only);
     config.learning_rate = absl::GetFlag(FLAGS_learning_rate);
     config.weight_decay = absl::GetFlag(FLAGS_weight_decay);
     config.train_batch_size = absl::GetFlag(FLAGS_train_batch_size);

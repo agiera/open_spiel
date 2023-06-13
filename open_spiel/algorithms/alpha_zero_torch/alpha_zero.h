@@ -37,6 +37,8 @@ struct AlphaZeroConfig {
   std::string devices;
 
   bool explicit_learning;
+  bool save_self_play;
+  bool learn_only;
   double learning_rate;
   double weight_decay;
   int train_batch_size;
@@ -72,6 +74,8 @@ struct AlphaZeroConfig {
         {"nn_depth", nn_depth},
         {"devices", devices},
         {"explicit_learning", explicit_learning},
+        {"save_self_play", save_self_play},
+        {"learn_only", learn_only},
         {"learning_rate", learning_rate},
         {"weight_decay", weight_decay},
         {"train_batch_size", train_batch_size},
@@ -106,6 +110,8 @@ struct AlphaZeroConfig {
     nn_depth = config_json.at("nn_depth").GetInt();
     devices = config_json.at("devices").GetString();
     explicit_learning = config_json.at("explicit_learning").GetBool();
+    save_self_play = config_json.at("save_self_play").GetBool();
+    learn_only = config_json.at("learn_only").GetBool();
     learning_rate = config_json.at("learning_rate").GetDouble();
     weight_decay = config_json.at("weight_decay").GetDouble();
     train_batch_size = config_json.at("train_batch_size").GetInt();
