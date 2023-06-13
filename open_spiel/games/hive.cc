@@ -91,19 +91,14 @@ std::string HiveActionToString(HiveAction action) {
 }
 
 HiveMove HiveState::HiveActionToHiveMove(HiveAction action) const {
-  //std::cout << "\nHiveActionToHiveMove\n";
   if (action.pass) { return HiveMove(); }
   Hexagon from = board_.GetHexagonFromBug(action.from);
-  //std::cout << "from=" << BugToString(from.bug) << "\n";
   Hexagon around = board_.GetHexagonFromBug(action.around);
-  //std::cout << "around=" << BugToString(around.bug) << "\n";
   Offset to;
   // Handles case where the first two moves don't have adjacent bugs
   if (around.bug != kEmptyBug) {
     to = around.loc.neighbours[action.neighbour];
-    //std::cout << "to=" << OffsetToString(to) << "\n";
   }
-  //std::cout << "actions_history_.size()=" << actions_history_.size() << "\n";
   // Case that player is placing a bug
   if (from.bug == kEmptyBug) {
     if (actions_history_.size() == 0) {
@@ -115,17 +110,11 @@ HiveMove HiveState::HiveActionToHiveMove(HiveAction action) const {
 }
 
 std::vector<HiveAction> HiveState::HiveMoveToHiveActions(HiveMove move) const {
-  //std::cout << "\nHiveMoveToHiveActions\n";
   std::vector<HiveAction> hive_actions;
-  //std::cout << "move.pass=" << move.pass << "\n";
   if (move.pass) {
     hive_actions.push_back(HiveAction{true});
     return hive_actions;
   }
-  //std::cout << "move.place=" << move.place << "\n";
-  //std::cout << "move.from=" << move.from << "\n";
-  //std::cout << "move.to=" << move.to << "\n";
-  //std::cout << "board_.to_play=" << board_.to_play << "\n";
 
   Bug from;
   if (move.place) {
@@ -134,7 +123,6 @@ std::vector<HiveAction> HiveState::HiveMoveToHiveActions(HiveMove move) const {
   } else {
     from = board_.GetHexagon(move.from).bug;
   }
-  //std::cout << "from=" << BugToString(from) << "\n";
 
   Bug around = Bug{kWhite, kBee, 0};
   uint8_t neighbour_idx = 0;
@@ -146,7 +134,6 @@ std::vector<HiveAction> HiveState::HiveMoveToHiveActions(HiveMove move) const {
 
   Hexagon to = board_.GetHexagon(move.to);
   Offset to_off = Offset(move.to);
-  //std::cout << "to=" << HexagonToString(to) << "\n";
 
   // Add optional attributes for string representation
   bool jump = to.bug != kEmptyBug;
@@ -160,7 +147,6 @@ std::vector<HiveAction> HiveState::HiveMoveToHiveActions(HiveMove move) const {
     if (neighbour.bug != kEmptyBug) {
       // Don't use self for reference
       if (neighbour.bug == from) {
-        //std::cout << "from.below=" << (int) from.below << "\n";
         if (from.below != (uint8_t) -1) {
           around = Bug(from.below);
           neighbour_idx = mod(i - 3, 6);
@@ -180,7 +166,6 @@ std::vector<HiveAction> HiveState::HiveMoveToHiveActions(HiveMove move) const {
 }
 
 HiveAction HiveState::ActionToHiveAction(Action action) const {
-  //std::cout << "\nActionToHiveAction\n";
   int min_bits = action >> 8;
   if (action == kNumActions - 1) {
     return HiveAction{true};
@@ -202,11 +187,8 @@ HiveAction HiveState::ActionToHiveAction(Action action) const {
   bool jump = false;
   Bug on = Bug{kWhite, kBee, 0};
   if (around_hex.bug != kEmptyBug) {
-    //std::cout << "around_hex.bug=" << BugToString(around_hex.bug) << "\n";
     Hexagon to = board_.GetHexagon(around_hex.loc.neighbours[neighbour]);
-    //std::cout << "to.bug=" << BugToString(to.bug) << "\n";
     jump = to.bug != kEmptyBug && to.bug != from;
-    //std::cout << "jump=" << jump << "\n";
     if (jump) {
       on = to.bug;
     }
@@ -232,10 +214,7 @@ Action HiveState::HiveActionToAction(HiveAction action) const {
 }
 
 void HiveState::DoApplyAction(Action move) {
-  //std::cout << "\nDoApplyAction\n";
   HiveAction hive_action = ActionToHiveAction(move);
-  //std::cout << "ToString()=" << ToString() << "\n";
-  //std::cout << "hive_action=" << HiveActionToString(hive_action) << "\n";
   HiveMove hive_move = HiveActionToHiveMove(hive_action);
 
   actions_history_.push_back(hive_action);
@@ -261,14 +240,11 @@ void HiveState::UndoAction(Player player, Action move) {
 }
 
 std::vector<Action> HiveState::LegalActions() const {
-  //std::cout << "\nLegalActions\n";
   std::unordered_set<Action> action_set;
   if (cached_legal_actions_.empty()) {
     for (HiveMove hive_move : board_.LegalMoves()) {
       for (HiveAction hive_action : HiveMoveToHiveActions(hive_move)) {
-        //std::cout << "hive_action=" << HiveActionToString(hive_action) << "\n";
         Action action = HiveActionToAction(hive_action);
-        //std::cout << "action=" << (int) action << "\n";
         action_set.insert(action);
         if (!all_action_reprs_) break;
       }

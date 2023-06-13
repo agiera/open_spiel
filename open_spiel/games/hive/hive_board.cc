@@ -62,14 +62,10 @@ int HiveBoard::Height(Hexagon h) const {
 
 std::unordered_set<OffsetIdx> HiveBoard::FindCrawlMoves(Offset o, Bug original) const {
   std::unordered_set<OffsetIdx> moves;
-  //std::cout << "j=" << j << "\n";
-  //std::cout << "mod(j, 6)=" << hive::mod(j, 6) << "\n";
-  //std::cout << "mod(j+1, 6)=" << hive::mod(j+1, 6) << "\n";
   Hexagon n1;
   Hexagon n2 = GetHexagon(o.neighbours[5]);
   Hexagon n3 = GetHexagon(o.neighbours[0]);
   for (int i=0; i < 6; i++) {
-    //std::cout << "h.neighbours[j].loc=" << OffsetToString(n2.loc) << "\n";
     n1 = n2;
     n2 = n3;
     n3 = GetHexagon(o.neighbours[mod(i+1, 6)]);
@@ -159,7 +155,6 @@ void HiveBoard::GenerateBeeMoves(Hexagon h, std::vector<HiveMove> &moves) const 
   }
 }
 
-// TODO: fix bugs can be on top
 void HiveBoard::GenerateBeetleMoves(Hexagon h, std::vector<HiveMove> &moves) const {
   for (Hexagon n : FindJumpMoves(h)) {
     moves.push_back(HiveMove(h.loc.idx, n.loc.idx));
@@ -347,7 +342,6 @@ void HiveBoard::Clear() {
 
 void HiveBoard::InitBoard() {
   // Initialize hexagon neighbours
-  // TODO: make sure this is done at compile time
   for (uint8_t x=0; x < kBoardSize; x++) {
     for (uint8_t y=0; y < kBoardSize; y++) {
       Offset o = Offset(x, y);
@@ -393,18 +387,14 @@ bool HiveBoard::BugCanMove(Hexagon h) const {
 }
 
 Player HiveBoard::HexagonOwner(OffsetIdx idx) const {
-  //std::cout << "\nHexagonOwner\n";
   Player p = kInvalidPlayer;
 
   // Can't place bug on top of another
   if (board_[idx].bug_idx != (BugIdx) -1) { return p; }
 
-  //std::cout << "top.loc=" << OffsetToString(top.loc);
   // Make sure there aren't enemy bugs around hex
   for (OffsetIdx n_idx : board_[idx].neighbours) {
     Hexagon n = GetHexagon(n_idx);
-    //std::cout << "n.loc=" << OffsetToString(n.loc);
-    //std::cout << "n.bug=" << BugToString(n.bug) << "\n";
     if (n.bug != kEmptyBug) {
       SPIEL_DCHECK_GE(n.bug.player, kInvalidPlayer);
       SPIEL_DCHECK_LE(n.bug.player, kBlack);
@@ -420,8 +410,6 @@ Player HiveBoard::HexagonOwner(OffsetIdx idx) const {
 void HiveBoard::CacheHexagonOwner(OffsetIdx idx) {
   Player p = HexagonOwner(idx);
   if (p != kInvalidPlayer) {
-    //std::cout << "available_ insert " << OffsetToString(board_[idx]) << "\n";
-    //std::cout << "owner: " << p << "\n";
     available_[p].insert(idx);
     available_[!p].erase(idx);
   } else {
@@ -431,8 +419,6 @@ void HiveBoard::CacheHexagonOwner(OffsetIdx idx) {
 }
 
 void HiveBoard::CacheHexagonArea(OffsetIdx idx) {
-  //std::cout << "\nHexagonArea\n";
-  //std::cout << "idx=" << idx << "\n";
 
   // Erase the availables next to the first white bug
   // Before then caching the first black bug area
@@ -455,7 +441,6 @@ void HiveBoard::CacheHexagonArea(OffsetIdx idx) {
     CacheHexagonOwner(n_idx);
   }
 
-  //std::cout << "top_hexagons_.size=" << top_hexagons_.size() << "\n";
   // Initialize starting hexagons which subvert the normal rules
   if (top_hexagons_.size() == 0) {
     available_[kWhite].clear();
@@ -469,7 +454,6 @@ void HiveBoard::CacheHexagonArea(OffsetIdx idx) {
 }
 
 void HiveBoard::CachePinnedHexagons() {
-  //std::cout << "\nCachePinnedHexagons\n";
   // TODO: Find or create an articulation point vertex streaming algorithm.
   //       It's also possible there could be some optimizations for
   //       hexagon grid or planar graphs.
@@ -534,24 +518,14 @@ void HiveBoard::CachePinnedHexagons() {
       curNode->bug.low = std::min(curNode->bug.low, n->bug.low);
 
       if (n->bug.parent == curNode->bug.idx) {
-        //std::cout << "n->bug=" << BugToString(n->bug) << ";";
-        //std::cout << "n->bug.low=" << n->bug.low << ";\n";
         if (curNode->bug.parent != (BugIdx) -1 && n->bug.low >= curNode->bug.num) {
-          //std::cout << "pinned: " << BugToString(curNode->bug) << "\n";
           pinned_.insert(curNode->bug.idx);
         }
       }
     }
     if (curNode->bug.parent == (BugIdx) -1 && curNode->bug.children > 1) {
-      //std::cout << "pinned: " << BugToString(curNode->bug) << "\n";
       pinned_.insert(curNode->bug.idx);
     }
-    //std::cout << "bug=" << BugToString(curNode->bug) << ";";
-    //std::cout << "parent=" << BugToString(Bug(curNode->bug.parent)) << ";";
-    //std::cout << "parent=" << (int) curNode->bug.parent << ";";
-    //std::cout << "children=" << curNode->bug.children << ";";
-    //std::cout << "num=" << curNode->bug.num << ";";
-    //std::cout << "low=" << curNode->bug.low << ";\n";
     // Reset attributes for next fn call
     curNode->bug.visited = false;
   }
@@ -647,11 +621,9 @@ void HiveBoard::PlaceBug(OffsetIdx h_idx, Bug b) {
 }
 
 std::vector<HiveMove> HiveBoard::LegalMoves() const {
-  //std::cout << "\nLegalMoves\n";
   std::vector<HiveMove> legal_moves;
   // Player can only move bugs after the bee has been placed
   if (bees_[to_play] != (uint8_t) -1) {
-    //std::cout << "found bee\n";
     for (BugIdx bug_idx : top_hexagons_) {
       Hexagon h = hexagons_[bug_idx];
       if (h.bug.player == to_play) {
@@ -672,12 +644,9 @@ std::vector<HiveMove> HiveBoard::LegalMoves() const {
 
   // Player may always place bugs
   for (OffsetIdx idx : available_[to_play]) {
-    //std::cout << "available_[i]=" << idx << "\n";
-    //std::cout << "available_[i].bug=" << BugToString(GetHexagon(idx).bug) << "\n";
     // Skip kBee as that's covered in the rules above
     for (int8_t bug=1; bug < kNumBugTypes; bug++) {
       if (bug_collections_[to_play].HasBug((BugType) bug)) {
-        //std::cout << kBugTypeChars[bug] << "\n";
         legal_moves.push_back(HiveMove((BugType) bug, idx));
       }
     }
@@ -709,7 +678,6 @@ void HiveBoard::CacheOutcome() {
 }
 
 void HiveBoard::PlayMove(HiveMove &m) {
-  //std::cout << "\nPlayMove\n";
   if (m.pass || (!m.place && m.from == m.to)) {
     to_play = (Player) !to_play;
     return;

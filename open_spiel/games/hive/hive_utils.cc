@@ -58,7 +58,6 @@ Bug::Bug(BugIdx b) {
   std::fill(neighbours.begin(), neighbours.end(), -1);
 }
 
-// TODO
 absl::optional<BugType> BugTypeFromChar(char c) {
   return BugType::kBee;
 }
