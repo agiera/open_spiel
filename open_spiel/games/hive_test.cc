@@ -131,7 +131,11 @@ void BasicHiveTests() {
 
 void HumanGamesTests() {
   for (std::vector<std::string> game_moves : human_games) {
-    auto game = LoadGame("hive");
+    // Human games can use up to six strings to refer to the same move
+    // we must allow this in our validation
+    //GameParameters params;
+    //params["all_action_reprs"] = GameParameter(true);
+    auto game = LoadGame("hive(all_action_reprs=true)");
     auto state = game->NewInitialState();
     for (std::string move : game_moves) {
       SPIEL_CHECK_FALSE(state->IsTerminal());

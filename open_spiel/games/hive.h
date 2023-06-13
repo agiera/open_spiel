@@ -77,7 +77,7 @@ std::string HiveActionToString(HiveAction action);
 // State of an in-play game.
 class HiveState : public State {
  public:
-  HiveState(std::shared_ptr<const Game> game);
+  HiveState(std::shared_ptr<const Game> game, bool all_action_reprs);
 
   HiveState(const HiveState&) = default;
   HiveState& operator=(const HiveState&) = default;
@@ -107,6 +107,8 @@ class HiveState : public State {
   void DoApplyAction(Action move) override;
 
  private:
+  const bool all_action_reprs_;
+
   HiveMove HiveActionToHiveMove(HiveAction action) const;
   std::vector<HiveAction> HiveMoveToHiveActions(HiveMove move) const;
 
@@ -129,7 +131,7 @@ class HiveGame : public Game {
   explicit HiveGame(const GameParameters& params);
   int NumDistinctActions() const override { return kNumActions; }
   std::unique_ptr<State> NewInitialState() const override {
-    return std::unique_ptr<State>(new HiveState(shared_from_this()));
+    return std::unique_ptr<State>(new HiveState(shared_from_this(), all_action_reprs_));
   }
   int NumPlayers() const override { return kNumPlayers; }
   double MinUtility() const override { return -1; }
@@ -145,6 +147,8 @@ class HiveGame : public Game {
   }
   // TODO: figure out resonable upper bound
   int MaxGameLength() const override { return 10000; }
+
+  bool all_action_reprs_;
 };
 
 }  // namespace hive

@@ -44,7 +44,8 @@ const GameType kGameType{
     /*provides_information_state_tensor=*/false,
     /*provides_observation_string=*/true,
     /*provides_observation_tensor=*/true,
-    /*parameter_specification=*/{}  // no parameters
+    /*parameter_specification=*/
+    {{"all_action_reprs", GameParameter(false)}},
 };
 
 std::shared_ptr<const Game> Factory(const GameParameters& params) {
@@ -269,6 +270,7 @@ std::vector<Action> HiveState::LegalActions() const {
         Action action = HiveActionToAction(hive_action);
         //std::cout << "action=" << (int) action << "\n";
         action_set.insert(action);
+        if (!all_action_reprs_) break;
       }
     }
     cached_legal_actions_.assign(action_set.begin(), action_set.end());
@@ -283,7 +285,9 @@ std::string HiveState::ActionToString(Player player,
   return HiveActionToString(m);
 }
 
-HiveState::HiveState(std::shared_ptr<const Game> game) : State(game) {}
+HiveState::HiveState(std::shared_ptr<const Game> game, bool all_action_reprs)
+  : State(game),
+    all_action_reprs_(all_action_reprs) {}
 
 std::string HiveState::ToString() const {
   std::string res = "Base+MLP;";
@@ -385,7 +389,8 @@ std::unique_ptr<State> HiveState::Clone() const {
 }
 
 HiveGame::HiveGame(const GameParameters& params)
-    : Game(kGameType, params) {}
+    : Game(kGameType, params),
+      all_action_reprs_(ParameterValue<bool>("all_action_reprs")) {}
 
 }  // namespace hive
 }  // namespace open_spiel
