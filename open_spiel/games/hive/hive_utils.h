@@ -33,7 +33,7 @@ static const std::array<std::string, 2> kPlayerChars = { "w", "b" };
 
 // The maximum length the tiles can span is 28, so the hive can never wrap
 // around and complete the connection
-inline constexpr int kBoardSize = 29;
+inline constexpr int kBoardSize = 30;
 // there can be a stack of bugs up to 7 high
 inline constexpr int kBoardHeight = 7;
 inline constexpr int kNumHexagons = kBoardSize*kBoardSize*kBoardHeight;

@@ -145,15 +145,12 @@ std::vector<HiveAction> HiveState::HiveMoveToHiveActions(HiveMove move) const {
   for (int8_t i=0; i < 6; i++) {
     Hexagon neighbour = board_.GetHexagon(to_off.neighbours[i]);
     if (neighbour.bug != kEmptyBug) {
-      // Don't use self for reference
+      // Include beneath self for reference
       if (neighbour.bug == from) {
         if (from.below != (uint8_t) -1) {
           around = Bug(from.below);
           neighbour_idx = mod(i - 3, 6);
           hive_actions.push_back({false, from, around, neighbour_idx, false, jump, on});
-          continue;
-        } else {
-          continue;
         }
       }
       around = neighbour.bug;

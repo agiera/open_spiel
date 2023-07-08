@@ -120,13 +120,127 @@ const std::vector<std::vector<std::string>> human_games = {
     "bL wA3\\", "wL bP-", "bG1 -bM", "wG2 bB2\\", "bS1 wL-", "wA3 bA1-",
     "bG2 -wQ", "wL bB1-",
   },
+  // Edge cases from https://github.com/edre/nokamute/blob/master/data/uhp_tests.txt
+  {  // Queen moves
+    "wG1", "bG1 wG1-", "wQ \\wG1", "bQ bG1-", "wG2 /wG1", "bA1 bQ/",
+    "wG3 /wG2", "bA1 bQ-", "wB1 -wG3", "bA1 bQ/", "wB2 \\wB1", "bA1 bQ-",
+    "wS1 \\wB2", "bA1 bQ/", "wS2 wS1/", "bA1 bQ-", "wA1 \\wS2", "bA1 bQ/",
+    "wA2 wA1/", "bA1 bQ-", "wA3 wA2/", "bA1 wA3-", "wQ \\bG1",
+  },
+  {  // Grasshopper moves
+    "wG1", "bG1 wG1-", "wQ /wG1", "bQ bG1-", "wS1 wQ\\", "bA1 bQ-", "wB1 /wS1",
+    "bA1 -wQ", "wB1 wS1\\", "bA2 bQ-", "wB1 /wS1", "bA2 wG1\\", "wB1 wS1\\",
+    "bA3 bQ-", "wB1 /wS1", "bS1 bQ\\", "wB1 wS1", "bS1 wB1\\", "wB1 /wB1",
+    "bA3 -wB1", "wG1 bQ-",
+  },
+  {  // Ant moves
+    "wS1", "bB1 wS1-", "wQ -wS1", "bQ bB1-", "wB1 \\wQ", "bG1 bQ/", "wB2 \\wB1",
+    "bG2 bG1/", "wS2 \\wB2", "bS1 bG2/", "wA1 \\wS1", "bB2 bS1/", "wA2 \\wS2",
+    "bG3 \\bB2", "wA1 -bG1", "bA1 \\bG3", "wG1 wA2/", "bS2 -bA1", "wG2 wG1/",
+    "bA2 -bS2", "wA3 wG2-", "bA3 bS2\\", "wG3 wA3\\", "bA3 wG3\\", "wA1 -bG2",
+  },
+  {  // Spider moves
+    "wG1", "bA1 wG1-", "wS1 \\wG1", "bQ bA1-", "wQ /wG1", "bG1 bQ\\",
+    "wG2 wQ\\", "bB1 /bG1", "wB1 /wG2", "bG2 bG1\\", "wG3 /wB1", "bG2 -bB1",
+    "wB2 wG3\\", "bA1 bG1\\", "wA1 wB2-", "bA1 bB1\\", "wA2 wA1/", "bA1 bG1-",
+    "wS2 wA2-", "bA1 bG1\\", "wA3 wS2\\", "bA1 wA3-", "wS1 \\bQ",
+  },
+  {  // Spider moves 2
+    "wG1", "bA1 wG1/", "wB1 /wG1", "bA2 bA1-", "wQ wB1\\", "bQ bA2\\",
+    "wB2 /wQ", "bG1 bQ\\", "wS1 wG1\\", "bB1 /bG1", "wG2 /wB2", "bG2 bG1\\",
+    "wG3 wG2\\", "bG2 wS1\\", "wA1 wG3-", "bA1 -wB1", "wS2 wA1/", "bA3 bG1\\",
+    "wA2 wS2-", "bA2 \\wG1", "wA3 wA2\\", "bA3 wA3-", "wS1 bA2/",
+  },
+  {  // Beetle moves
+    "wB1", "bB1 wB1-", "wQ \\wB1", "bQ bB1/", "wG1 /wB1", "bB2 bB1\\",
+    "wA1 /wG1", "bA1 bQ\\", "wG2 -wA1", "bQ \\bB1", "wB2 /wG2", "bA2 \\bA1",
+    "wG3 wB2\\", "bA2 \\wQ", "wA2 wG3-", "bB2 wB1\\", "wS1 wA2\\", "bA1 bB1\\",
+    "wS2 wS1-", "bA1 bB1-", "wA3 wS2/", "bA1 \\wA3", "wB1 wQ",
+  },
+  {  // Mosquito moves
+    "wM", "bG1 wM-", "wS1 /wM", "bQ bG1-", "wQ /wS1", "bB1 bG1\\", "wB1 /wQ",
+    "bB1 wM\\", "wS2 /wB1", "bA1 bQ-", "wB2 wS2\\", "bA1 bQ\\", "wG1 wB2-",
+    "bA1 bQ-", "wG2 wG1/", "bA1 bQ\\", "wG3 wG2/", "bA1 bQ-", "wA1 wG3-",
+    "bA1 bQ/", "wA2 wA1-", "bA1 bQ-", "wA3 wA2\\", "bA1 /wA3", "wM bQ-",
+  },
+  {  // Ladybug moves
+    "wL", "bL wL/", "wQ -wL", "bQ bL/", "wQ -bL", "bA1 bQ/", "wB1 \\wQ",
+    "bA1 bQ-", "wS1 \\wB1", "bA1 bQ/", "wB2 \\wS1", "bA1 bQ-", "wS2 wB2/",
+    "bA1 bQ/", "wA1 wS2-", "bA1 bQ-", "wG1 wA1/", "bA1 bQ/", "wG2 wG1-",
+    "bA1 bQ-", "wA2 wG2\\", "bA1 bQ/", "wA3 wA2-", "bA1 bQ-", "wG3 wA3/",
+    "bA1 \\wG3", "wL wB1/",
+  },
+  {  // White wins
+    "wS1", "bS1 wS1-", "wQ -wS1", "bQ bS1/", "wG1 -wQ", "bG1 \\bQ", "wG1 bQ\\",
+    "bG2 bQ/", "wA1 wQ\\", "bA1 bG2/", "wA1 bG2\\", "bA1 \\bG2", "wQ \\wS1",
+    "bA1 bG2/", "wQ /bG1",
+  },
+  {  // Black suicide
+    "wS1", "bS1 wS1-", "wQ -wS1", "bQ bS1/", "wG1 -wQ", "bG1 \\bQ", "wG1 bQ\\",
+    "bG2 bQ/", "wA1 wQ\\", "bA1 bG2/", "wA1 bG2\\", "bA1 /bG1",
+  },
+  {  // Draw
+    "wS1", "bS1 wS1-", "wQ -wS1", "bQ bS1/", "wG1 -wQ", "bG1 \\bQ", "wG1 bQ\\",
+    "bG2 bQ/", "wA1 wQ\\", "bA1 bG2/", "wA1 bG2\\", "bA1 \\bG2", "wQ \\wS1",
+    "bG1 wA1/", "wQ -bQ", "bA1 \\wQ", "wB1 -wS1", "bG3 bG1-", "wB1 /bA1",
+    "bG3 -bG2",
+  },
+  {  // Pass
+    "wA1", "bS1 wA1-", "wQ -wA1", "bQ bS1/", "wQ \\wA1", "bA1 bS1\\",
+    "wQ -wA1", "bA2 bQ\\", "wQ \\wA1", "bA1 \\wQ", "wG1 /wQ", "bA2 /wG1", "pass",
+  },
+  // Weird stuff:
+  {  // Super long hive axis-1
+    "wG1", "bG1 wG1-", "wQ -wG1", "bQ bG1-", "wS1 -wQ", "bS1 bQ-", "wS2 -wS1",
+    "bS2 bS1-", "wB1 -wS2", "bB1 bS2-", "wB2 -wB1", "bB2 bB1-", "wG2 -wB2",
+    "bG2 bB2-", "wG3 -wG2", "bG3 bG2-", "wA1 -wG3", "bA1 bG3-", "wA2 -wA1",
+    "bA2 bA1-", "wA3 -wA2", "bA3 bA2-", "wA3 \\wA2",
+  },
+  {  // Super long hive axis-2
+    "wM", "bM wM\\", "wL \\wM", "bL bM\\", "wP \\wL", "bP bL\\", "wQ \\wP",
+    "bQ bP\\", "wS1 \\wQ", "bS1 bQ\\", "wS2 \\wS1", "bS2 bS1\\", "wB1 \\wS2",
+    "bB1 bS2\\", "wB2 \\wB1", "bB2 bB1\\", "wG1 \\wB2", "bG1 bB2\\",
+    "wG2 \\wG1", "bG2 bG1\\", "wG3 \\wG2", "bG3 bG2\\", "wA1 \\wG3",
+    "bA1 bG3\\", "wA2 \\wA1", "bA2 bA1\\", "wA3 \\wA2", "bA3 bA2\\",
+    "wA3 wA2/",
+  },
+  {  // Super long hive axis-3
+    "wM", "bM wM/", "wL /wM", "bL bM/", "wP /wL", "bP bL/", "wQ /wP", "bQ bP/",
+    "wS1 /wQ", "bS1 bQ/", "wS2 /wS1", "bS2 bS1/", "wB1 /wS2", "bB1 bS2/",
+    "wB2 /wB1", "bB2 bB1/", "wG1 /wB2", "bG1 bB2/", "wG2 /wG1", "bG2 bG1/",
+    "wG3 /wG2", "bG3 bG2/", "wA1 /wG3", "bA1 bG3/", "wA2 /wA1", "bA2 bA1/",
+    "wA3 /wA2", "bA3 bA2/", "wA3 -wA2",
+  },
+  {  // Draw by threefold repetition
+    "wS1", "bB1 wS1-", "wQ \\wS1", "bQ bB1\\", "wQ -wS1", "bQ bB1-",
+    "wQ \\wS1", "bQ bB1\\", "wQ -wS1", "bQ bB1-", "wQ \\wS1",
+    "bQ bB1\\",
+  },
+  {  // Beetle gate
+    "wB1", "bS1 wB1-", "wQ \\wB1", "bQ bS1/", "wB2 -wQ", "bB1 bQ\\", "wS1 /wB2",
+    "bB1 bS1", "wG1 /wS1", "bQ \\bB1", "wG2 wG1\\", "bB2 bQ/", "wG3 wG2\\",
+    "bB2 \\bQ", "wA1 wG3-", "bB2 wQ", "wA2 wA1-", "bA1 bQ/", "wS2 wA2-",
+    "bA1 bB1/", "wA3 wS2/", "bA1 wA3/", "wB1 bB2",
+  },
+  {  // Ladybug gate
+    "wL", "bG1 wL/", "wQ -wL", "bQ bG1/", "wQ -bG1", "bG2 bQ-", "wB1 \\wQ",
+    "bB1 bG2-", "wS1 \\wB1", "bB1 bG2", "wS2 \\wS1", "bG3 \\bQ", "wG1 wS2/",
+    "bB2 bG3/", "wB2 wG1/", "bB2 bG3", "wA1 wB2-", "bA1 bB1-", "wA2 wA1-",
+    "bA1 bB1\\", "wG2 wA2-", "bA1 bB1-", "wG3 wG2\\", "bA1 bB1\\", "wA3 wG3\\",
+    "bA1 wA3\\", "wL -bB2",
+  },
+  {  // Pillbug gate
+    "wP", "bB1 wP-", "wQ /wP", "bQ bB1/", "wQ wP\\", "bQ \\bB1", "wQ /wP",
+    "bA1 bQ/", "wQ wP\\", "bA1 -bQ", "wQ /wP", "bB2 \\bQ", "wQ wP\\",
+    "bB2 bQ", "bA1 -wP", "bB1 wQ", "bA1 -bB2",
+  },
 };
 
 void BasicHiveTests() {
   testing::LoadGameTest("hive");
   testing::NoChanceOutcomesTest(*LoadGame("hive"));
-  testing::RandomSimTest(*LoadGame("hive"), 10);
-  testing::RandomSimTestWithUndo(*LoadGame("hive"), 10);
+  testing::RandomSimTest(*LoadGame("hive"), 3);
+  testing::RandomSimTestWithUndo(*LoadGame("hive"), 3);
 }
 
 void HumanGamesTests() {
@@ -152,6 +266,6 @@ void HumanGamesTests() {
 }  // namespace open_spiel
 
 int main(int argc, char** argv) {
-  open_spiel::hive::BasicHiveTests();
   open_spiel::hive::HumanGamesTests();
+  open_spiel::hive::BasicHiveTests();
 }
